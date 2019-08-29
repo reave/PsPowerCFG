@@ -345,7 +345,7 @@ function Export-SRUMDB {
                 Write-Verbose "Retrieving and resolving error message."
                 $errorContent = Get-Content "$($env:temp)\error.txt"
 
-                Write-Error -Message $errorContent
+                Write-Error -Message "$errorContent"
                 break
             } else {
                 Write-Output "SRUM Database saved to file path: $($Outfile.FullName)"
@@ -365,7 +365,7 @@ function Export-SRUMDB {
                 Write-Verbose "Retrieving and resolving error message."
                 $errorContent = Get-Content "$($env:temp)\error.txt"
 
-                Write-Error -Message $errorContent
+                Write-Error -Message "$errorContent"
                 break
             } else {
                 Write-Output "SRUM Database saved to file path: $($Outfile.FullName)"
