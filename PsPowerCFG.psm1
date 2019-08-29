@@ -341,7 +341,7 @@ function Export-SRUMDB {
 
             $result = Start-Process -FilePath powercfg.exe -ArgumentList "/SRUMUTIL /OUTPUT ""$($OutFile)"" /XML" -WindowStyle Hidden -Wait -RedirectStandardError "$($env:temp)\error.txt" -RedirectStandardOutput "$($env:temp)\out.txt" -PassThru
 
-            if ($result -ne 0) {
+            if ($result.ExitCode -ne 0) {
                 Write-Verbose "Retrieving and resolving error message."
                 $errorContent = Get-Content "$($env:temp)\error.txt"
 
@@ -361,7 +361,7 @@ function Export-SRUMDB {
 
             $result = Start-Process -FilePath powercfg.exe -ArgumentList "/SRUMUTIL /OUTPUT ""$($OutFile)"" /CSV" -WindowStyle Hidden -Wait -RedirectStandardError "$($env:temp)\error.txt" -RedirectStandardOutput "$($env:temp)\out.txt" -PassThru
 
-            if ($result -ne 0) {
+            if ($result.ExitCode -ne 0) {
                 Write-Verbose "Retrieving and resolving error message."
                 $errorContent = Get-Content "$($env:temp)\error.txt"
 
