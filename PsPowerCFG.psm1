@@ -2,18 +2,14 @@ Function Test-IsAdmin {
     <#
     .SYNOPSIS
     Test if current running user is an administrator
-
     .DESCRIPTION
     Test if current running user is an administrator
-
     .EXAMPLE
     If (Test-IsAdmin) {
         Write-Output "User is an Admin."
     }
-
     .NOTES
     #>
-
     [CmdletBinding()]
     Param()
     Process {
@@ -25,18 +21,14 @@ function Get-PowerSchemes {
     <#
 	.SYNOPSIS
 	Get existing Power Schemes on a computer
-
 	.DESCRIPTION
 	Get existing Power Schemes on a computer
-
 	.EXAMPLE
-	Get-PowerSchemes
-
+    Get-PowerSchemes
+    
 	Returns all of the currently installed power schemes on the computer
 	.NOTES
-
 	#>
-
     [CmdletBinding()]
     Param()
     Begin {
@@ -76,15 +68,11 @@ function Get-ActivePowerScheme {
     <#
 	.SYNOPSIS
 	Get the currently active power scheme
-
 	.DESCRIPTION
 	Get the currently active power scheme
-
 	.EXAMPLE
 	Get-ActivePowerScheme
-
 	.NOTES
-
 	#>
     [CmdletBinding()]
     param ()
@@ -125,49 +113,38 @@ function Export-SystemPowerReport {
     <#
     .SYNOPSIS
     Export System Power Reports
-
     .DESCRIPTION
     Generates a report of system power transitions over the last three days on
     the system, including connected standby power efficiency. The
     SYSTEMPOWERREPORT command will generate an HTML report file in the current
     path or the designated path.
-
     .PARAMETER OutFile
     Full path to where you want the report saved.
 
     For XML reports make sure the ending extension is .xml
     Standard Reports are HTML
-
     .PARAMETER FormatXML
     If you would prefer the report in XML instead of HTML pass this switch.
 
     Note: We will attempt to edit the outfile extension for you if you forget too
-
     .PARAMETER Duration
     Duration of days to go back in history and analyze
-
     .PARAMETER ReformatXML
     Reformat an XML report into HTML
 
     Note: This will save the reformatted report into the current path or working directory
-
     .PARAMETER FilePath
     Path to an existing XML report that we can convert to HTML
-
     .EXAMPLE
     Export-SystemPowerReport -OutFile C:\Temp\Test.html
 
     Export an HTML Power Report
-
     .EXAMPLE
     Export-SystemPowerReport -ReformatXML -FilePath C:\Temp\Test.XML
 
     Converts the Test.XML to a sleep-study.html
-
     .NOTES
-
     #>
-
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false, ParameterSetName = 'OutputReport')]
@@ -222,46 +199,36 @@ function Export-SystemSleepDiagnostics {
     <#
     .SYNOPSIS
     Export System Sleep Diagnostics
-
     .DESCRIPTION
     Generates a report of intervals when the user was not present over the last
     three days on the system, and if the system went to sleep. The command will
     generate an HTML report file in the current path or the designated path.
-
     .PARAMETER OutFile
     Full path to where you want the report saved.
 
     For XML reports make sure the ending extension is .xml
     Standard Reports are HTML
-
     .PARAMETER FormatXML
     If you would prefer the report in XML instead of HTML pass this switch.
 
     Note: We will attempt to edit the outfile extension for you if you forget too
-
     .PARAMETER Duration
     Duration of days to go back in history and analyze
-
     .PARAMETER ReformatXML
     Reformat an XML report into HTML
 
     Note: This will save the reformatted report into the current path or working directory
-
     .PARAMETER FilePath
     Path to an existing XML report that we can convert to HTML
-
     .EXAMPLE
     Export-SystemPowerReport -OutFile C:\Temp\Test.html
 
     Export an HTML Power Report
-
     .EXAMPLE
     Export-SystemPowerReport -ReformatXML -FilePath C:\Temp\Test.XML
 
     Converts the Test.XML to a sleep-study.html
-
     .NOTES
-
     #>
 
     [CmdletBinding()]
