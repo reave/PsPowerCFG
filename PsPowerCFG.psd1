@@ -42,6 +42,9 @@
         'Get-PowerHibernate'
         'Set-PowerHibernate'
         'Get-PowerBatteryState'
+        'Export-EnergyReport'
+        'Export-BatteryReport'
+        'Export-PowerProvisioningXml'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
