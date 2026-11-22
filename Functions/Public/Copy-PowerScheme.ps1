@@ -35,15 +35,14 @@ function Copy-PowerScheme {
 
     process {
         if (-not $PSCmdlet.ShouldProcess("$Guid", 'Duplicate power scheme')) { return }
-        try {
-            $destination = if ($PSBoundParameters.ContainsKey('DestinationGuid')) { [Nullable[guid]]$DestinationGuid } else { $null }
-            $new = [PsPowerCfg.PowerApi]::DuplicateScheme($Guid, $destination)
-            if ($NewName) { [PsPowerCfg.PowerApi]::WriteFriendlyName($new, $null, $null, $NewName) }
-            if ($PSBoundParameters.ContainsKey('Description')) { [PsPowerCfg.PowerApi]::WriteDescription($new, $null, $null, $Description) }
-            [PsPowerCfg.PowerApi]::GetScheme($new)
+        $destination = if ($PSBoundParameters.ContainsKey('DestinationGuid')) { [Nullable[guid]]$DestinationGuid } else { $null }
+        $name = if ($NewName) { $NewName } else { $null }
+        $desc = if ($PSBoundParameters.ContainsKey('Description')) { [string]$Description } else { $null }
+        $r = [PsPowerCfg.Safe]::DuplicateScheme($Guid, $destination, $name, $desc)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'CopyPowerSchemeFailed' -TargetObject $Guid))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'CopyPowerSchemeFailed' -TargetObject $Guid))
-        }
+        $r.Value
     }
 }

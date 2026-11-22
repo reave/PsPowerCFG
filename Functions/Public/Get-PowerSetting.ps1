@@ -70,13 +70,12 @@ function Get-PowerSetting {
             }
         }
 
-        try {
-            $settings = [PsPowerCfg.PowerApi]::GetSettings($schemeGuid, $subGuid, $setGuid, $IncludeHidden.IsPresent)
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'GetPowerSettingFailed' -TargetObject $schemeGuid))
+        $r = [PsPowerCfg.Safe]::GetSettings($schemeGuid, $subGuid, $setGuid, $IncludeHidden.IsPresent)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'GetPowerSettingFailed' -TargetObject $schemeGuid))
             return
         }
+        $settings = $r.Value
 
         if (-not $Name) { return $settings }
         $patterns = foreach ($n in $Name) {

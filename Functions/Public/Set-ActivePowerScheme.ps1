@@ -46,12 +46,11 @@ function Set-ActivePowerScheme {
         }
 
         if (-not $PSCmdlet.ShouldProcess("$Guid", 'Set active power scheme')) { return }
-        try {
-            [PsPowerCfg.PowerApi]::SetActiveScheme($Guid)
-            if ($PassThru) { [PsPowerCfg.PowerApi]::GetScheme($Guid) }
+        $r = [PsPowerCfg.Safe]::SetActiveScheme($Guid)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'SetActivePowerSchemeFailed' -TargetObject $Guid))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'SetActivePowerSchemeFailed' -TargetObject $Guid))
-        }
+        if ($PassThru) { $r.Value }
     }
 }

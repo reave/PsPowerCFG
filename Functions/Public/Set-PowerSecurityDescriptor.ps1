@@ -49,11 +49,9 @@ function Set-PowerSecurityDescriptor {
 
         $t = Resolve-PowerSecurityTarget -Cmdlet $PSCmdlet -Guid $Guid -Action $Action
         if (-not $PSCmdlet.ShouldProcess($t.Label, "Set security descriptor to $Sddl")) { return }
-        try {
-            [PsPowerCfg.PowerApi]::WriteSecurityDescriptor($t.Accessor, $t.Guid, $Sddl)
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'SetPowerSecurityDescriptorFailed' -TargetObject $t.Label))
+        $r = [PsPowerCfg.Safe]::WriteSecurityDescriptor($t.Accessor, $t.Guid, $Sddl)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'SetPowerSecurityDescriptorFailed' -TargetObject $t.Label))
         }
     }
 }

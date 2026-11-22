@@ -41,7 +41,9 @@ Describe 'Module' {
             'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme', 'Restore-DefaultPowerScheme',
             'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB',
             'Get-PowerSetting', 'Set-PowerSetting', 'Set-PowerTimeout', 'Remove-PowerSetting', 'Set-PowerSettingAttribute',
-            'Get-PowerAlias', 'Get-PowerSecurityDescriptor', 'Set-PowerSecurityDescriptor')
+            'Get-PowerAlias', 'Get-PowerSecurityDescriptor', 'Set-PowerSecurityDescriptor',
+            'Get-PowerCapability', 'Get-PowerDevice', 'Enable-PowerDeviceWake', 'Disable-PowerDeviceWake',
+            'Get-PowerLastWake', 'Get-PowerHibernate', 'Set-PowerHibernate', 'Get-PowerBatteryState')
         $cmds | Should -Be ($expected | Sort-Object)
     }
 
@@ -415,6 +417,163 @@ Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
         $err[0].FullyQualifiedErrorId | Should -BeLike 'InvalidSddl*'
         Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'O:BAG:SYD:P(A;CI;KA;;;BA)' -WhatIf
         (Get-PowerSecurityDescriptor -Action ActionSetActive).Sddl | Should -Be $before
+    }
+}
+
+Describe 'Error reporting' {
+    # A .NET exception caught inside a function still lands in the caller's
+    # -ErrorVariable, so native failures must not throw into PowerShell code.
+    It 'writes exactly one error for a native failure (Set-ActivePowerScheme)' {
+        Set-ActivePowerScheme -Guid ([guid]::NewGuid()) -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Be 1
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'SetActivePowerSchemeFailed*'
+    }
+    It 'writes exactly one error for a native failure (Get-PowerSetting)' {
+        Get-PowerSetting -Scheme ([guid]::NewGuid().ToString()) -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Be 1
+    }
+}
+
+Describe 'Get-PowerCapability' {
+    BeforeAll {
+        $script:caps = Get-PowerCapability
+        $script:cliA = (powercfg.exe /availablesleepstates | Out-String)
+        # The available block runs from the first line up to the
+        # "not available" header. English output only.
+        $script:english = $script:cliA -match 'sleep states are available'
+        if ($script:english) {
+            $script:available = ($script:cliA -split 'sleep states are not available')[0]
+        }
+    }
+    It 'returns the full SYSTEM_POWER_CAPABILITIES buffer' {
+        $script:caps | Should -BeOfType ([PsPowerCfg.PowerCapabilities])
+        $script:caps.Raw.Length | Should -Be 84
+    }
+    It 'reports HiberFilePresent the same as the file system' {
+        $file = [IO.Path]::Combine($env:SystemDrive + '\', 'hiberfil.sys')
+        $script:caps.HiberFilePresent | Should -Be ([IO.File]::Exists($file))
+    }
+    It 'agrees with powercfg /availablesleepstates on <Label>' -ForEach @(
+        @{ Label = 'S1'; Property = 'StandbyS1'; Pattern = 'S1' }
+        @{ Label = 'S2'; Property = 'StandbyS2'; Pattern = 'S2' }
+        @{ Label = 'S3'; Property = 'StandbyS3'; Pattern = 'S3' }
+        @{ Label = 'S0 low power idle'; Property = 'StandbyS0LowPowerIdle'; Pattern = 'S0 Low Power Idle' }
+        @{ Label = 'Hibernate'; Property = 'Hibernate'; Pattern = '(?m)^\s*Hibernate' }
+        @{ Label = 'Hybrid sleep'; Property = 'HybridSleep'; Pattern = 'Hybrid Sleep' }
+        @{ Label = 'Fast startup'; Property = 'FastStartup'; Pattern = 'Fast Startup' }
+    ) {
+        if (-not $script:english) { Set-ItResult -Skipped -Because 'powercfg output is not English'; return }
+        $script:caps.$Property | Should -Be ($script:available -match $Pattern) -Because "powercfg /a said:`n$script:cliA"
+    }
+}
+
+Describe 'Get-PowerBatteryState' {
+    It 'returns a state that agrees with the capabilities on battery presence' {
+        $b = Get-PowerBatteryState
+        $b | Should -BeOfType ([PsPowerCfg.PowerBatteryState])
+        $b.BatteryPresent | Should -Be (Get-PowerCapability).SystemBatteriesPresent
+        if (-not $b.BatteryPresent) { $b.Percent | Should -BeNullOrEmpty }
+    }
+}
+
+Describe 'Get-PowerDevice' {
+    BeforeDiscovery {
+        $queries = @(
+            @{ Query = 'WakeFromS1Supported'; Flag = 'wake_from_S1_supported' }
+            @{ Query = 'WakeFromS2Supported'; Flag = 'wake_from_S2_supported' }
+            @{ Query = 'WakeFromS3Supported'; Flag = 'wake_from_S3_supported' }
+            @{ Query = 'WakeFromAny'; Flag = 'wake_from_any' }
+            @{ Query = 'S1Supported'; Flag = 'S1_supported' }
+            @{ Query = 'S2Supported'; Flag = 'S2_supported' }
+            @{ Query = 'S3Supported'; Flag = 'S3_supported' }
+            @{ Query = 'S4Supported'; Flag = 'S4_supported' }
+            @{ Query = 'WakeProgrammable'; Flag = 'wake_programmable' }
+            @{ Query = 'WakeArmed'; Flag = 'wake_armed' }
+            @{ Query = 'AllDevices'; Flag = 'all_devices' }
+        )
+    }
+    It 'matches powercfg /devicequery <Flag>' -ForEach $queries {
+        $cli = @(powercfg.exe /devicequery $Flag | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'NONE' })
+        if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
+        $ours = @(Get-PowerDevice -Query $Query | ForEach-Object Name)
+        ($ours | Sort-Object) -join "`n" | Should -Be (($cli | Sort-Object) -join "`n")
+    }
+    It 'marks armed devices as programmable' {
+        foreach ($d in Get-PowerDevice -Query WakeArmed) {
+            $d.WakeArmed | Should -BeTrue
+            $d.WakeProgrammable | Should -BeTrue -Because $d.Name
+        }
+    }
+    It 'Enable-PowerDeviceWake throws ElevationRequired when not elevated' -Skip:$isAdmin {
+        { Enable-PowerDeviceWake -Name 'x' } | Should -Throw -ErrorId 'ElevationRequired,Enable-PowerDeviceWake'
+    }
+    It 'Disable-PowerDeviceWake -WhatIf changes nothing' -Skip:(-not $isAdmin) {
+        $armed = @(Get-PowerDevice -Query WakeArmed)
+        if (-not $armed.Count) { Set-ItResult -Skipped -Because 'no wake-armed devices'; return }
+        $armed[0] | Disable-PowerDeviceWake -WhatIf
+        (Get-PowerDevice -Query WakeArmed | ForEach-Object Name) | Should -Contain $armed[0].Name
+    }
+    It 'reports a missing device as PowerDeviceNotFound' -Skip:(-not $isAdmin) {
+        Disable-PowerDeviceWake -Name 'PsPowerCFG no such device' -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Be 1
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerDeviceNotFound*'
+    }
+}
+
+Describe 'Device wake changes' -Tag 'Mutating' -Skip:(-not ($runMutating -and $isAdmin)) {
+    It 'disarms and re-arms a wake-armed device (verified with powercfg)' {
+        $armed = @(Get-PowerDevice -Query WakeArmed)
+        if (-not $armed.Count) { Set-ItResult -Skipped -Because 'no wake-armed devices'; return }
+        $name = $armed[0].Name
+        try {
+            $d = Disable-PowerDeviceWake -Name $name -Confirm:$false -PassThru -ErrorAction Stop
+            $d.WakeArmed | Should -BeFalse
+            @(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) | Should -Not -Contain $name
+        }
+        finally {
+            Enable-PowerDeviceWake -Name $name -Confirm:$false -ErrorAction SilentlyContinue
+            if (@(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) -notcontains $name) {
+                powercfg.exe /deviceenableawake $name | Out-Null
+            }
+        }
+        @(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) | Should -Contain $name
+    }
+}
+
+Describe 'Get-PowerLastWake' {
+    It 'returns the newest Power-Troubleshooter wake event' {
+        $ours = @(Get-PowerLastWake)
+        $theirs = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Power-Troubleshooter'; Id = 1 } -MaxEvents 1 -ErrorAction SilentlyContinue)
+        $ours.Count | Should -Be $theirs.Count
+        if (-not $theirs.Count) { Set-ItResult -Skipped -Because 'no wake events in the System log'; return }
+        $ours[0].PSObject.TypeNames | Should -Contain 'PsPowerCfg.PowerWakeEvent'
+        $ours[0].TimeCreated | Should -Be $theirs[0].TimeCreated
+        $ours[0].WakeTime | Should -Not -BeNullOrEmpty
+        $ours[0].WakeTime | Should -BeGreaterOrEqual $ours[0].SleepTime
+    }
+    It 'returns -Count events newest first' {
+        $events = @(Get-PowerLastWake -Count 3)
+        $events.Count | Should -BeLessOrEqual 3
+        for ($i = 1; $i -lt $events.Count; $i++) {
+            $events[$i - 1].TimeCreated | Should -BeGreaterOrEqual $events[$i].TimeCreated
+        }
+    }
+}
+
+Describe 'Hibernate' {
+    It 'Get-PowerHibernate agrees with the file system' {
+        $h = Get-PowerHibernate
+        $file = [IO.Path]::Combine($env:SystemDrive + '\', 'hiberfil.sys')
+        $h.HiberFilePresent | Should -Be ([IO.File]::Exists($file))
+        if ($h.HiberFilePresent) { $h.HiberFileSize | Should -BeGreaterThan 0 }
+    }
+    It 'Set-PowerHibernate throws ElevationRequired when not elevated' -Skip:$isAdmin {
+        { Set-PowerHibernate -Disable } | Should -Throw -ErrorId 'ElevationRequired,Set-PowerHibernate'
+    }
+    It 'Set-PowerHibernate -WhatIf changes nothing' -Skip:(-not $isAdmin) {
+        $before = Get-PowerHibernate
+        if ($before.Enabled) { Set-PowerHibernate -Disable -WhatIf } else { Set-PowerHibernate -Enable -WhatIf }
+        (Get-PowerHibernate).Enabled | Should -Be $before.Enabled
     }
 }
 

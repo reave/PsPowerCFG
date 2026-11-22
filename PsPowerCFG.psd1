@@ -1,6 +1,6 @@
 @{
     RootModule           = 'PsPowerCFG.psm1'
-    ModuleVersion        = '1.3.0'
+    ModuleVersion        = '1.4.0'
     GUID                 = '4c864518-13d1-4a7e-a7e3-7c6080b2e6e8'
     Author               = 'reave'
     Copyright            = '(c) reave. All rights reserved.'
@@ -34,6 +34,14 @@
         'Export-SystemPowerReport'
         'Export-SystemSleepDiagnostics'
         'Export-SRUMDB'
+        'Get-PowerCapability'
+        'Get-PowerDevice'
+        'Enable-PowerDeviceWake'
+        'Disable-PowerDeviceWake'
+        'Get-PowerLastWake'
+        'Get-PowerHibernate'
+        'Set-PowerHibernate'
+        'Get-PowerBatteryState'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

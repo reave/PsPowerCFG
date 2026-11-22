@@ -1007,4 +1007,629 @@ a9ceb8da-cd46-44fb-a98b-02af69de4623    ALLOWDISPLAY
 aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
 ";
     }
+
+    // ---------------------------------------------------------------
+    // Non-throwing entry points for the public functions.
+    //
+    // A .NET exception raised in PowerShell code is added to the calling
+    // command's -ErrorVariable even when a try/catch in the function
+    // handles it, so callers saw the raw exception before the module's own
+    // ErrorRecord. The functions call these instead: each returns a
+    // NativeResult and never throws, so the only error a caller sees is the
+    // one the function writes.
+    // ---------------------------------------------------------------
+    public sealed class NativeResult
+    {
+        public object Value { get; private set; }
+        public Exception Error { get; private set; }
+        public bool Failed { get { return Error != null; } }
+
+        internal static NativeResult Run(Func<object> body)
+        {
+            NativeResult r = new NativeResult();
+            try { r.Value = body(); }
+            catch (Exception e) { r.Error = e; }
+            return r;
+        }
+
+        internal static NativeResult RunVoid(Action body)
+        {
+            NativeResult r = new NativeResult();
+            try { body(); }
+            catch (Exception e) { r.Error = e; }
+            return r;
+        }
+    }
+
+    public static class Safe
+    {
+        // name / description: null leaves them as the copy has them.
+        public static NativeResult DuplicateScheme(Guid source, Guid? destination, string name, string description)
+        {
+            return NativeResult.Run(delegate
+            {
+                Guid g = PowerApi.DuplicateScheme(source, destination);
+                if (name != null) { PowerApi.WriteFriendlyName(g, null, null, name); }
+                if (description != null) { PowerApi.WriteDescription(g, null, null, description); }
+                return PowerApi.GetScheme(g);
+            });
+        }
+
+        public static NativeResult ImportScheme(string path, Guid? destination, string name)
+        {
+            return NativeResult.Run(delegate
+            {
+                Guid g = PowerApi.ImportScheme(path, destination);
+                if (name != null) { PowerApi.WriteFriendlyName(g, null, null, name); }
+                return PowerApi.GetScheme(g);
+            });
+        }
+
+        public static NativeResult RenameScheme(Guid scheme, string name, string description)
+        {
+            return NativeResult.Run(delegate
+            {
+                PowerApi.WriteFriendlyName(scheme, null, null, name);
+                if (description != null) { PowerApi.WriteDescription(scheme, null, null, description); }
+                return PowerApi.GetScheme(scheme);
+            });
+        }
+
+        public static NativeResult SetActiveScheme(Guid scheme)
+        {
+            return NativeResult.Run(delegate
+            {
+                PowerApi.SetActiveScheme(scheme);
+                return PowerApi.GetScheme(scheme);
+            });
+        }
+
+        public static NativeResult DeleteScheme(Guid scheme)
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.DeleteScheme(scheme); });
+        }
+
+        public static NativeResult RestoreDefaultScheme(Guid scheme)
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.RestoreDefaultScheme(scheme); });
+        }
+
+        public static NativeResult RestoreDefaultSchemes()
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.RestoreDefaultSchemes(); });
+        }
+
+        // Friendly name for a confirmation prompt; null when unreadable.
+        public static string ReadFriendlyName(Guid? scheme, Guid? subgroup, Guid? setting)
+        {
+            try { return PowerApi.ReadFriendlyName(scheme, subgroup, setting); }
+            catch (Win32Exception) { return null; }
+        }
+
+        public static NativeResult GetSetting(Guid scheme, Guid subgroup, Guid setting)
+        {
+            return NativeResult.Run(delegate { return PowerApi.GetSetting(scheme, subgroup, setting, null); });
+        }
+
+        public static NativeResult GetSettings(Guid scheme, Guid? subgroup, Guid? setting, bool includeHidden)
+        {
+            return NativeResult.Run(delegate { return PowerApi.GetSettings(scheme, subgroup, setting, includeHidden); });
+        }
+
+        // Writes AC and/or DC, then re-applies the scheme when it is active so
+        // the change takes effect now. Returns the setting as written.
+        public static NativeResult WriteSettingValues(Guid scheme, Guid subgroup, Guid setting, bool writeAc, uint acValue, bool writeDc, uint dcValue)
+        {
+            return NativeResult.Run(delegate
+            {
+                if (writeAc) { PowerApi.WriteAcValue(scheme, subgroup, setting, acValue); }
+                if (writeDc) { PowerApi.WriteDcValue(scheme, subgroup, setting, dcValue); }
+                if (scheme == PowerApi.GetActiveScheme()) { PowerApi.SetActiveScheme(scheme); }
+                return PowerApi.GetSetting(scheme, subgroup, setting, null);
+            });
+        }
+
+        public static NativeResult ReadSettingAttributes(Guid subgroup, Guid setting)
+        {
+            return NativeResult.Run(delegate { return PowerApi.ReadSettingAttributes(subgroup, setting); });
+        }
+
+        public static NativeResult WriteSettingAttributes(Guid subgroup, Guid setting, uint attributes)
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.WriteSettingAttributes(subgroup, setting, attributes); });
+        }
+
+        public static NativeResult RemoveSetting(Guid subgroup, Guid setting)
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.RemoveSetting(subgroup, setting); });
+        }
+
+        public static NativeResult ReadSecurityDescriptor(uint accessor, Guid? guid)
+        {
+            return NativeResult.Run(delegate { return PowerApi.ReadSecurityDescriptor(accessor, guid); });
+        }
+
+        public static NativeResult WriteSecurityDescriptor(uint accessor, Guid? guid, string sddl)
+        {
+            return NativeResult.RunVoid(delegate { PowerApi.WriteSecurityDescriptor(accessor, guid, sddl); });
+        }
+
+        public static NativeResult QueryEventLog(string channel, string xpath, int max)
+        {
+            return NativeResult.Run(delegate { return WinEvent.Query(channel, xpath, max); });
+        }
+
+        public static NativeResult GetCapabilities()
+        {
+            return NativeResult.Run(delegate { return PowerInfo.GetCapabilities(); });
+        }
+
+        public static NativeResult GetBatteryState()
+        {
+            return NativeResult.Run(delegate { return PowerInfo.GetBatteryState(); });
+        }
+
+        public static NativeResult GetDevices(PowerDeviceQuery query)
+        {
+            return NativeResult.Run(delegate { return DevicePower.GetDevices(query); });
+        }
+
+        public static NativeResult SetDeviceWake(string name, bool enable)
+        {
+            return NativeResult.Run(delegate { return DevicePower.SetWake(name, enable); });
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // System power information (CallNtPowerInformation)
+    // ---------------------------------------------------------------
+
+    public enum SystemPowerState
+    {
+        Unspecified = 0, Working = 1, Sleeping1 = 2, Sleeping2 = 3, Sleeping3 = 4, Hibernate = 5, Shutdown = 6
+    }
+
+    public enum HiberFileType
+    {
+        None = 0, Reduced = 1, Full = 2
+    }
+
+    // SYSTEM_POWER_CAPABILITIES, with the members powercfg /availablesleepstates
+    // reports under friendlier names.
+    public sealed class PowerCapabilities
+    {
+        public bool StandbyS1 { get; internal set; }
+        public bool StandbyS2 { get; internal set; }
+        public bool StandbyS3 { get; internal set; }
+        public bool Hibernate { get; internal set; }
+        public bool SoftOffS5 { get; internal set; }
+        public bool HybridSleep { get; internal set; }
+        public bool FastStartup { get; internal set; }
+        public bool StandbyS0LowPowerIdle { get; internal set; }
+        public bool S0NetworkConnected { get; internal set; }
+        public bool HiberFilePresent { get; internal set; }
+        public HiberFileType HiberFileType { get; internal set; }
+        public bool PowerButtonPresent { get; internal set; }
+        public bool SleepButtonPresent { get; internal set; }
+        public bool LidPresent { get; internal set; }
+        public bool FullWake { get; internal set; }
+        public bool VideoDimPresent { get; internal set; }
+        public bool UpsPresent { get; internal set; }
+        public bool ThermalControl { get; internal set; }
+        public bool ProcessorThrottle { get; internal set; }
+        public byte ProcessorMinThrottle { get; internal set; }
+        public byte ProcessorMaxThrottle { get; internal set; }
+        public bool WakeAlarmPresent { get; internal set; }
+        public bool DiskSpinDown { get; internal set; }
+        public bool SystemBatteriesPresent { get; internal set; }
+        public bool BatteriesAreShortTerm { get; internal set; }
+        public SystemPowerState AcOnLineWake { get; internal set; }
+        public SystemPowerState SoftLidWake { get; internal set; }
+        public SystemPowerState RtcWake { get; internal set; }
+        public SystemPowerState MinDeviceWakeState { get; internal set; }
+        public SystemPowerState DefaultLowLatencyWake { get; internal set; }
+        public byte[] Raw { get; internal set; }
+    }
+
+    public sealed class PowerBatteryState
+    {
+        public bool AcOnLine { get; internal set; }
+        public bool BatteryPresent { get; internal set; }
+        public bool Charging { get; internal set; }
+        public bool Discharging { get; internal set; }
+        public uint MaxCapacity { get; internal set; }
+        public uint RemainingCapacity { get; internal set; }
+        public double? Percent { get; internal set; }
+        // mW; positive while charging, negative while discharging.
+        public int Rate { get; internal set; }
+        public TimeSpan? EstimatedTime { get; internal set; }
+        public uint DefaultAlert1 { get; internal set; }
+        public uint DefaultAlert2 { get; internal set; }
+    }
+
+    internal static class PowerInfoNative
+    {
+        internal const int SystemBatteryState = 5;
+        internal const int SystemPowerCapabilities = 4;
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern int CallNtPowerInformation(int informationLevel, IntPtr inputBuffer, uint inputBufferLength, byte[] outputBuffer, uint outputBufferLength);
+
+        [DllImport("ntdll.dll", ExactSpelling = true)]
+        internal static extern uint RtlNtStatusToDosError(int status);
+    }
+
+    public static class PowerInfo
+    {
+        // sizeof(SYSTEM_POWER_CAPABILITIES) on x64 and x86: 37 bytes of
+        // BOOLEAN/BYTE members, padding to 40, BATTERY_REPORTING_SCALE[3]
+        // (24 bytes) and five SYSTEM_POWER_STATE enums (20 bytes).
+        internal const int CapabilitiesSize = 84;
+        internal const int BatteryStateSize = 32;
+
+        internal static byte[] Query(int level, int size)
+        {
+            byte[] buffer = new byte[size];
+            int status = PowerInfoNative.CallNtPowerInformation(level, IntPtr.Zero, 0, buffer, (uint)size);
+            if (status != 0)
+            {
+                uint rc = PowerInfoNative.RtlNtStatusToDosError(status);
+                throw PowerApi.Fail("CallNtPowerInformation(" + level + ")", rc);
+            }
+            return buffer;
+        }
+
+        public static PowerCapabilities GetCapabilities()
+        {
+            byte[] b = Query(PowerInfoNative.SystemPowerCapabilities, CapabilitiesSize);
+            PowerCapabilities c = new PowerCapabilities();
+            c.PowerButtonPresent = b[0] != 0;
+            c.SleepButtonPresent = b[1] != 0;
+            c.LidPresent = b[2] != 0;
+            c.StandbyS1 = b[3] != 0;
+            c.StandbyS2 = b[4] != 0;
+            c.StandbyS3 = b[5] != 0;
+            c.Hibernate = b[6] != 0;
+            c.SoftOffS5 = b[7] != 0;
+            c.HiberFilePresent = b[8] != 0;
+            c.FullWake = b[9] != 0;
+            c.VideoDimPresent = b[10] != 0;
+            // b[11] ApmPresent: always false on supported Windows.
+            c.UpsPresent = b[12] != 0;
+            c.ThermalControl = b[13] != 0;
+            c.ProcessorThrottle = b[14] != 0;
+            c.ProcessorMinThrottle = b[15];
+            // b[16] ProcessorThrottleScale, b[17..20] spare2.
+            c.ProcessorMaxThrottle = b[21];
+            c.HybridSleep = b[22] != 0;           // FastSystemS4
+            c.FastStartup = b[23] != 0;           // Hiberboot
+            c.WakeAlarmPresent = b[24] != 0;
+            c.StandbyS0LowPowerIdle = b[25] != 0; // AoAc
+            c.DiskSpinDown = b[26] != 0;
+            c.HiberFileType = (HiberFileType)b[27];
+            c.S0NetworkConnected = b[28] != 0;    // AoAcConnectivitySupported
+            // b[29..34] spare3.
+            c.SystemBatteriesPresent = b[35] != 0;
+            c.BatteriesAreShortTerm = b[36] != 0;
+            // b[40..63] BatteryScale[3].
+            c.AcOnLineWake = (SystemPowerState)BitConverter.ToInt32(b, 64);
+            c.SoftLidWake = (SystemPowerState)BitConverter.ToInt32(b, 68);
+            c.RtcWake = (SystemPowerState)BitConverter.ToInt32(b, 72);
+            c.MinDeviceWakeState = (SystemPowerState)BitConverter.ToInt32(b, 76);
+            c.DefaultLowLatencyWake = (SystemPowerState)BitConverter.ToInt32(b, 80);
+            c.Raw = b;
+            return c;
+        }
+
+        // Size of a file such as hiberfil.sys without opening it (it is
+        // locked while Windows runs); null when absent or unreadable.
+        public static long? FileLength(string path)
+        {
+            try
+            {
+                System.IO.FileInfo fi = new System.IO.FileInfo(path);
+                if (fi.Exists) { return fi.Length; }
+            }
+            catch (System.IO.IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (System.Security.SecurityException) { }
+            return null;
+        }
+
+        public static PowerBatteryState GetBatteryState()
+        {
+            byte[] b = Query(PowerInfoNative.SystemBatteryState, BatteryStateSize);
+            PowerBatteryState s = new PowerBatteryState();
+            s.AcOnLine = b[0] != 0;
+            s.BatteryPresent = b[1] != 0;
+            s.Charging = b[2] != 0;
+            s.Discharging = b[3] != 0;
+            // b[4..6] Spare1, b[7] Tag.
+            s.MaxCapacity = BitConverter.ToUInt32(b, 8);
+            s.RemainingCapacity = BitConverter.ToUInt32(b, 12);
+            s.Rate = BitConverter.ToInt32(b, 16);
+            uint seconds = BitConverter.ToUInt32(b, 20);
+            // BATTERY_UNKNOWN_TIME = 0xFFFFFFFF; 0 also means not estimated.
+            if (seconds != 0xFFFFFFFF && seconds != 0) { s.EstimatedTime = TimeSpan.FromSeconds(seconds); }
+            s.DefaultAlert1 = BitConverter.ToUInt32(b, 24);
+            s.DefaultAlert2 = BitConverter.ToUInt32(b, 28);
+            if (s.BatteryPresent && s.MaxCapacity > 0)
+            {
+                s.Percent = Math.Round(100.0 * s.RemainingCapacity / s.MaxCapacity, 1);
+            }
+            return s;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Device power (DevicePowerEnumDevices / DevicePowerSetDeviceState)
+    // ---------------------------------------------------------------
+
+    // The powercfg /devicequery flags.
+    public enum PowerDeviceQuery
+    {
+        WakeFromS1Supported, WakeFromS2Supported, WakeFromS3Supported, WakeFromAny,
+        S1Supported, S2Supported, S3Supported, S4Supported,
+        WakeProgrammable, WakeArmed, AllDevices
+    }
+
+    internal static class DevicePowerNative
+    {
+        internal const uint DEVICEPOWER_HARDWAREID = 0x80000000;
+        internal const uint DEVICEPOWER_AND_OPERATION = 0x40000000;
+        internal const uint DEVICEPOWER_FILTER_DEVICES_PRESENT = 0x20000000;
+        internal const uint DEVICEPOWER_FILTER_HARDWARE = 0x10000000;
+        internal const uint DEVICEPOWER_FILTER_WAKEENABLED = 0x08000000;
+        internal const uint DEVICEPOWER_FILTER_WAKEPROGRAMMABLE = 0x04000000;
+        internal const uint DEVICEPOWER_FILTER_ON_NAME = 0x02000000;
+
+        internal const uint DEVICEPOWER_SET_WAKEENABLED = 1;
+        internal const uint DEVICEPOWER_CLEAR_WAKEENABLED = 2;
+
+        internal const uint PDCAP_S1_SUPPORTED = 0x00020000;
+        internal const uint PDCAP_S2_SUPPORTED = 0x00040000;
+        internal const uint PDCAP_S3_SUPPORTED = 0x00080000;
+        internal const uint PDCAP_S4_SUPPORTED = 0x01000000;
+        internal const uint PDCAP_WAKE_FROM_S1_SUPPORTED = 0x00200000;
+        internal const uint PDCAP_WAKE_FROM_S2_SUPPORTED = 0x00400000;
+        internal const uint PDCAP_WAKE_FROM_S3_SUPPORTED = 0x00800000;
+        // Every PDCAP_* bit: D0-D3, wake from D0-D3, warm eject, S0-S5 and
+        // wake from S0-S3.
+        internal const uint PDCAP_ALL = 0x03FF01FF;
+
+        [DllImport("powrprof.dll", ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        internal static extern bool DevicePowerOpen(uint debugMask);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        internal static extern bool DevicePowerClose();
+
+        [DllImport("powrprof.dll", ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        internal static extern bool DevicePowerEnumDevices(uint queryIndex, uint queryInterpretationFlags, uint queryFlags, byte[] returnBuffer, ref uint bufferSize);
+
+        // Returns a Win32 error code: ERROR_SUCCESS (0) on success. The SDK
+        // page says "nonzero on success", but its own sample treats nonzero
+        // as failure; SetWake verifies the result by re-querying either way.
+        [DllImport("powrprof.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern uint DevicePowerSetDeviceState(string deviceDescription, uint setFlags, IntPtr setData);
+    }
+
+    public sealed class PowerDevice
+    {
+        public string Name { get; internal set; }
+        public bool WakeProgrammable { get; internal set; }
+        public bool WakeArmed { get; internal set; }
+        public override string ToString() { return Name; }
+    }
+
+    public static class DevicePower
+    {
+        public static void Flags(PowerDeviceQuery query, out uint interpretation, out uint flags)
+        {
+            interpretation = DevicePowerNative.DEVICEPOWER_FILTER_DEVICES_PRESENT;
+            flags = 0;
+            switch (query)
+            {
+                case PowerDeviceQuery.WakeFromS1Supported: flags = DevicePowerNative.PDCAP_WAKE_FROM_S1_SUPPORTED; break;
+                case PowerDeviceQuery.WakeFromS2Supported: flags = DevicePowerNative.PDCAP_WAKE_FROM_S2_SUPPORTED; break;
+                case PowerDeviceQuery.WakeFromS3Supported: flags = DevicePowerNative.PDCAP_WAKE_FROM_S3_SUPPORTED; break;
+                case PowerDeviceQuery.WakeFromAny:
+                    flags = DevicePowerNative.PDCAP_WAKE_FROM_S1_SUPPORTED | DevicePowerNative.PDCAP_WAKE_FROM_S2_SUPPORTED | DevicePowerNative.PDCAP_WAKE_FROM_S3_SUPPORTED;
+                    break;
+                case PowerDeviceQuery.S1Supported: flags = DevicePowerNative.PDCAP_S1_SUPPORTED; break;
+                case PowerDeviceQuery.S2Supported: flags = DevicePowerNative.PDCAP_S2_SUPPORTED; break;
+                case PowerDeviceQuery.S3Supported: flags = DevicePowerNative.PDCAP_S3_SUPPORTED; break;
+                case PowerDeviceQuery.S4Supported: flags = DevicePowerNative.PDCAP_S4_SUPPORTED; break;
+                case PowerDeviceQuery.WakeProgrammable:
+                    interpretation |= DevicePowerNative.DEVICEPOWER_FILTER_WAKEPROGRAMMABLE;
+                    flags = DevicePowerNative.PDCAP_ALL;
+                    break;
+                case PowerDeviceQuery.WakeArmed:
+                    interpretation |= DevicePowerNative.DEVICEPOWER_FILTER_WAKEENABLED;
+                    flags = DevicePowerNative.PDCAP_ALL;
+                    break;
+                case PowerDeviceQuery.AllDevices:
+                    interpretation |= DevicePowerNative.DEVICEPOWER_FILTER_HARDWARE;
+                    flags = DevicePowerNative.PDCAP_ALL;
+                    break;
+            }
+        }
+
+        // Raw enumeration with explicit flags, for diagnosing powercfg parity.
+        public static string[] EnumerateRaw(uint interpretation, uint flags)
+        {
+            List<string> names = new List<string>();
+            byte[] buffer = new byte[4096];
+            for (uint i = 0; ; i++)
+            {
+                Array.Clear(buffer, 0, buffer.Length);
+                uint size = (uint)buffer.Length;
+                if (!DevicePowerNative.DevicePowerEnumDevices(i, interpretation, flags, buffer, ref size)) { break; }
+                string name = Encoding.Unicode.GetString(buffer, 0, (int)Math.Min(size, (uint)buffer.Length));
+                int nul = name.IndexOf('\0');
+                if (nul >= 0) { name = name.Substring(0, nul); }
+                if (name.Length > 0) { names.Add(name); }
+            }
+            return names.ToArray();
+        }
+
+        public static string[] Enumerate(PowerDeviceQuery query)
+        {
+            uint interpretation, flags;
+            Flags(query, out interpretation, out flags);
+            return EnumerateRaw(interpretation, flags);
+        }
+
+        public static PowerDevice[] GetDevices(PowerDeviceQuery query)
+        {
+            // One open for the three enumerations: opening the device list is
+            // the expensive part.
+            bool opened = DevicePowerNative.DevicePowerOpen(0);
+            try
+            {
+                string[] names = Enumerate(query);
+                // Dictionary, not HashSet: HashSet lives in System.Core on .NET
+                // Framework, which 5.1's Add-Type does not reference by default.
+                Dictionary<string, bool> programmable = ToSet(Enumerate(PowerDeviceQuery.WakeProgrammable));
+                Dictionary<string, bool> armed = ToSet(Enumerate(PowerDeviceQuery.WakeArmed));
+                List<PowerDevice> result = new List<PowerDevice>();
+                foreach (string n in names)
+                {
+                    PowerDevice d = new PowerDevice();
+                    d.Name = n;
+                    d.WakeProgrammable = programmable.ContainsKey(n);
+                    d.WakeArmed = armed.ContainsKey(n);
+                    result.Add(d);
+                }
+                return result.ToArray();
+            }
+            finally
+            {
+                if (opened) { DevicePowerNative.DevicePowerClose(); }
+            }
+        }
+
+        private static Dictionary<string, bool> ToSet(string[] names)
+        {
+            Dictionary<string, bool> set = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (string n in names) { set[n] = true; }
+            return set;
+        }
+
+        // Arms or disarms wake, then re-reads the armed list to confirm.
+        public static PowerDevice SetWake(string name, bool enable)
+        {
+            uint rc = DevicePowerNative.DevicePowerSetDeviceState(name,
+                enable ? DevicePowerNative.DEVICEPOWER_SET_WAKEENABLED : DevicePowerNative.DEVICEPOWER_CLEAR_WAKEENABLED, IntPtr.Zero);
+            if (rc != 0) { throw PowerApi.Fail("DevicePowerSetDeviceState", rc); }
+            bool armed = false;
+            foreach (string n in Enumerate(PowerDeviceQuery.WakeArmed))
+            {
+                if (string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) { armed = true; break; }
+            }
+            if (armed != enable)
+            {
+                throw new InvalidOperationException("DevicePowerSetDeviceState reported success, but '" + name + "' is " +
+                    (armed ? "still" : "not") + " armed to wake the system.");
+            }
+            PowerDevice d = new PowerDevice();
+            d.Name = name;
+            d.WakeProgrammable = true;
+            d.WakeArmed = armed;
+            return d;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Event log (wevtapi), for the wake history. Called through P/Invoke
+    // rather than System.Diagnostics.Eventing.Reader, which PowerShell 7 only
+    // has once Microsoft.PowerShell.Diagnostics is loaded.
+    // ---------------------------------------------------------------
+    internal static class EvtNative
+    {
+        internal const int EvtQueryChannelPath = 0x1;
+        internal const int EvtQueryReverseDirection = 0x200;
+        internal const int EvtRenderEventXml = 1;
+        internal const int ERROR_NO_MORE_ITEMS = 259;
+        internal const int ERROR_INSUFFICIENT_BUFFER = 122;
+        internal const int ERROR_EVT_CHANNEL_NOT_FOUND = 15007;
+
+        [DllImport("wevtapi.dll", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern IntPtr EvtQuery(IntPtr session, string path, string query, int flags);
+
+        [DllImport("wevtapi.dll", ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EvtNext(IntPtr resultSet, int eventArraySize, [Out] IntPtr[] eventArray, int timeout, int flags, out int returned);
+
+        [DllImport("wevtapi.dll", ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EvtRender(IntPtr context, IntPtr fragment, int flags, int bufferSize, IntPtr buffer, out int bufferUsed, out int propertyCount);
+
+        [DllImport("wevtapi.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EvtClose(IntPtr handle);
+    }
+
+    public static class WinEvent
+    {
+        // Newest-first event XML for an XPath query on a channel, at most max.
+        public static string[] Query(string channel, string xpath, int max)
+        {
+            List<string> result = new List<string>();
+            IntPtr query = EvtNative.EvtQuery(IntPtr.Zero, channel, xpath, EvtNative.EvtQueryChannelPath | EvtNative.EvtQueryReverseDirection);
+            if (query == IntPtr.Zero) { throw PowerApi.Fail("EvtQuery", (uint)Marshal.GetLastWin32Error()); }
+            try
+            {
+                IntPtr[] events = new IntPtr[1];
+                while (result.Count < max)
+                {
+                    int returned;
+                    if (!EvtNative.EvtNext(query, 1, events, -1, 0, out returned))
+                    {
+                        int rc = Marshal.GetLastWin32Error();
+                        if (rc == EvtNative.ERROR_NO_MORE_ITEMS) { break; }
+                        throw PowerApi.Fail("EvtNext", (uint)rc);
+                    }
+                    try
+                    {
+                        result.Add(Render(events[0]));
+                    }
+                    finally
+                    {
+                        EvtNative.EvtClose(events[0]);
+                    }
+                }
+            }
+            finally
+            {
+                EvtNative.EvtClose(query);
+            }
+            return result.ToArray();
+        }
+
+        private static string Render(IntPtr evt)
+        {
+            int used, props;
+            if (!EvtNative.EvtRender(IntPtr.Zero, evt, EvtNative.EvtRenderEventXml, 0, IntPtr.Zero, out used, out props))
+            {
+                int rc = Marshal.GetLastWin32Error();
+                if (rc != EvtNative.ERROR_INSUFFICIENT_BUFFER) { throw PowerApi.Fail("EvtRender", (uint)rc); }
+            }
+            IntPtr buffer = Marshal.AllocHGlobal(used);
+            try
+            {
+                if (!EvtNative.EvtRender(IntPtr.Zero, evt, EvtNative.EvtRenderEventXml, used, buffer, out used, out props))
+                {
+                    throw PowerApi.Fail("EvtRender", (uint)Marshal.GetLastWin32Error());
+                }
+                return Marshal.PtrToStringUni(buffer);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+    }
 }

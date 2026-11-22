@@ -47,16 +47,19 @@ function Set-PowerSettingAttribute {
         }
         $subGuid = [guid]$subGuid
 
-        $attrs = [PsPowerCfg.PowerApi]::ReadSettingAttributes($subGuid, $setGuid)
+        $r = [PsPowerCfg.Safe]::ReadSettingAttributes($subGuid, $setGuid)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'PowerSettingNotFound' -TargetObject $Setting))
+            return
+        }
+        $attrs = [uint32]$r.Value
         $new = if ($Hidden) { $attrs -bor 1 } else { $attrs - ($attrs -band 1) }
         if ($new -eq $attrs) { return }
         $verb = if ($Hidden) { 'Hide' } else { 'Show' }
         if (-not $PSCmdlet.ShouldProcess("$setGuid", "$verb power setting")) { return }
-        try {
-            [PsPowerCfg.PowerApi]::WriteSettingAttributes($subGuid, $setGuid, [uint32]$new)
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'SetPowerSettingAttributeFailed' -TargetObject $setGuid))
+        $r = [PsPowerCfg.Safe]::WriteSettingAttributes($subGuid, $setGuid, [uint32]$new)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'SetPowerSettingAttributeFailed' -TargetObject $setGuid))
         }
     }
 }
