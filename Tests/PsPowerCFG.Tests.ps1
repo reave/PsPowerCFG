@@ -3,6 +3,12 @@
 #   powershell.exe -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 #   pwsh.exe       -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 
+BeforeDiscovery {
+    # -Skip is evaluated during discovery, before any BeforeAll runs, so the
+    # elevation check has to happen here.
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 BeforeAll {
     $manifest = Join-Path $PSScriptRoot '..\PsPowerCFG.psd1'
     Import-Module $manifest -Force -ErrorAction Stop
@@ -11,7 +17,6 @@ BeforeAll {
     $script:cliGuids = @(powercfg.exe /list | Select-String -Pattern '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' -AllMatches |
             ForEach-Object { [guid]$_.Matches[0].Value })
     $script:cliActive = [guid]((powercfg.exe /getactivescheme | Select-String -Pattern '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}').Matches[0].Value)
-    $script:isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
 AfterAll {
@@ -104,13 +109,13 @@ Describe 'Report functions' {
         Remove-Item -LiteralPath $script:out -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    Context 'not elevated' -Skip:($script:isAdmin) {
+    Context 'not elevated' -Skip:$isAdmin {
         It 'Export-SystemPowerReport throws ElevationRequired' {
             { Export-SystemPowerReport -OutFile (Join-Path $script:out 'x.html') } | Should -Throw -ErrorId 'ElevationRequired,Export-SystemPowerReport'
         }
     }
 
-    Context 'elevated' -Skip:(-not $script:isAdmin) {
+    Context 'elevated' -Skip:(-not $isAdmin) {
         It 'Export-SystemPowerReport writes HTML and returns FileInfo' {
             $f = Export-SystemPowerReport -OutFile (Join-Path $script:out 'spr') -Duration 1
             $f | Should -BeOfType [IO.FileInfo]
