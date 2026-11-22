@@ -34,7 +34,11 @@ Describe 'Module' {
 
     It 'exports exactly the manifest functions' {
         $cmds = (Get-Command -Module PsPowerCFG -CommandType Function).Name | Sort-Object
-        $cmds | Should -Be (@('Export-SRUMDB', 'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Get-ActivePowerScheme', 'Get-PowerScheme') | Sort-Object)
+        $expected = @(
+            'Get-PowerScheme', 'Get-ActivePowerScheme', 'Set-ActivePowerScheme', 'Copy-PowerScheme', 'Rename-PowerScheme',
+            'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme', 'Restore-DefaultPowerScheme',
+            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB')
+        $cmds | Should -Be ($expected | Sort-Object)
     }
 
     It 'keeps the Get-PowerSchemes alias' {
@@ -97,6 +101,89 @@ Describe 'Get-ActivePowerScheme' {
 
     It 'reports IsActive' {
         (Get-ActivePowerScheme).IsActive | Should -BeTrue
+    }
+}
+
+Describe 'Scheme management' -Tag 'Mutating' {
+    BeforeAll {
+        $script:originalActive = [PsPowerCfg.PowerApi]::GetActiveScheme()
+        $script:created = [System.Collections.Generic.List[guid]]::new()
+        $script:tmp = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-scheme-' + [guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($script:tmp)
+        $script:source = Get-ActivePowerScheme
+    }
+    AfterAll {
+        [PsPowerCfg.PowerApi]::SetActiveScheme($script:originalActive)
+        foreach ($g in $script:created) {
+            try { [PsPowerCfg.PowerApi]::DeleteScheme($g) } catch { Write-Warning "cleanup: $($_.Exception.Message)" }
+        }
+        Remove-Item -LiteralPath $script:tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'Copy-PowerScheme duplicates with a new name and description' {
+        $copy = $script:source | Copy-PowerScheme -NewName 'PsPowerCFG test copy' -Description 'temporary'
+        $script:created.Add($copy.Guid)
+        $copy.Guid | Should -Not -Be $script:source.Guid
+        $copy.Name | Should -Be 'PsPowerCFG test copy'
+        $copy.Description | Should -Be 'temporary'
+        (Get-PowerScheme).Guid | Should -Contain $copy.Guid
+    }
+
+    It 'Copy-PowerScheme honors -DestinationGuid' {
+        $dest = [guid]::NewGuid()
+        $copy = Copy-PowerScheme -Guid $script:source.Guid -DestinationGuid $dest
+        $script:created.Add($copy.Guid)
+        $copy.Guid | Should -Be $dest
+        $copy.Name | Should -Be $script:source.Name
+    }
+
+    It 'Rename-PowerScheme changes the name' {
+        $r = Rename-PowerScheme -Guid $script:created[0] -NewName 'PsPowerCFG renamed' -PassThru
+        $r.Name | Should -Be 'PsPowerCFG renamed'
+        (powercfg.exe /list | Out-String) | Should -Match 'PsPowerCFG renamed'
+    }
+
+    It 'Set-ActivePowerScheme activates by GUID and by name' {
+        Set-ActivePowerScheme -Guid $script:created[0]
+        (Get-ActivePowerScheme).Guid | Should -Be $script:created[0]
+        $p = Set-ActivePowerScheme -Name $script:source.Name -PassThru
+        $p.Guid | Should -Be $script:source.Guid
+        $p.IsActive | Should -BeTrue
+    }
+
+    It 'Remove-PowerScheme refuses the active scheme' {
+        Remove-PowerScheme -Guid (Get-ActivePowerScheme).Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsActive*'
+    }
+
+    It 'Remove-PowerScheme -WhatIf deletes nothing' {
+        Remove-PowerScheme -Guid $script:created[0] -WhatIf
+        (Get-PowerScheme).Guid | Should -Contain $script:created[0]
+    }
+
+    It 'Export-PowerScheme writes a .pow file' {
+        $f = Export-PowerScheme -Guid $script:created[0] -Path (Join-Path $script:tmp 'x.pow')
+        $f | Should -BeOfType [IO.FileInfo]
+        $f.Length | Should -BeGreaterThan 0
+    }
+
+    It 'Import-PowerScheme round-trips an export' -Skip:(-not $isAdmin) {
+        $s = Import-PowerScheme -Path (Join-Path $script:tmp 'x.pow') -NewName 'PsPowerCFG imported'
+        $script:created.Add($s.Guid)
+        $s.Name | Should -Be 'PsPowerCFG imported'
+        (Get-PowerScheme).Guid | Should -Contain $s.Guid
+    }
+
+    It 'Remove-PowerScheme deletes from the pipeline' {
+        $victim = Copy-PowerScheme -Guid $script:source.Guid -NewName 'PsPowerCFG delete me'
+        $victim | Remove-PowerScheme -Confirm:$false
+        (Get-PowerScheme).Guid | Should -Not -Contain $victim.Guid
+    }
+
+    It 'Restore-DefaultPowerScheme -WhatIf changes nothing' {
+        $before = @((Get-PowerScheme).Guid | Sort-Object)
+        Restore-DefaultPowerScheme -WhatIf
+        @((Get-PowerScheme).Guid | Sort-Object) | Should -Be $before
     }
 }
 
