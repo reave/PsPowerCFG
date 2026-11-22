@@ -59,11 +59,11 @@ try {
     [void][PsPowerCfgDisc.N]::PowerSetRequest($req, 0)   # DisplayRequired
     [void][PsPowerCfgDisc.N]::PowerSetRequest($req, 1)   # SystemRequired
     [void][PsPowerCfgDisc.N]::PowerSetRequest($req, 3)   # ExecutionRequired
-    [void][PsPowerCfgDisc.N]::SetThreadExecutionState(0x80000003)
+    [void][PsPowerCfgDisc.N]::SetThreadExecutionState([uint32]2147483651)  # ES_CONTINUOUS|ES_DISPLAY_REQUIRED|ES_SYSTEM_REQUIRED
     Show 'requests (held: PowerSetRequest display+system+execution, SetThreadExecutionState display+system)' { powercfg.exe /requests }
 }
 finally {
-    [void][PsPowerCfgDisc.N]::SetThreadExecutionState(0x80000000)
+    [void][PsPowerCfgDisc.N]::SetThreadExecutionState([uint32]2147483648)  # ES_CONTINUOUS
     foreach ($t in 0, 1, 3) { [void][PsPowerCfgDisc.N]::PowerClearRequest($req, $t) }
     [void][PsPowerCfgDisc.N]::CloseHandle($req)
 }
