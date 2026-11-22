@@ -1,18 +1,17 @@
-Function Test-IsAdmin {
+function Test-IsAdmin {
     <#
     .SYNOPSIS
-    Test if current running user is an administrator
-    .DESCRIPTION
-    Test if current running user is an administrator
-    .EXAMPLE
-    If (Test-IsAdmin) {
-        Write-Output "User is an Admin."
-    }
-    .NOTES
+    Returns $true when the current process token is elevated (member of BUILTIN\Administrators).
     #>
     [CmdletBinding()]
-    Param()
-    Process {
-        ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+    [OutputType([bool])]
+    param()
+
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    try {
+        ([System.Security.Principal.WindowsPrincipal]$identity).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    finally {
+        $identity.Dispose()
     }
 }
