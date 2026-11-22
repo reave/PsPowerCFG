@@ -1,86 +1,76 @@
 function Export-SystemPowerReport {
     <#
     .SYNOPSIS
-    Export System Power Reports
+    Generates a system power transition report. Equivalent to powercfg /systempowerreport (alias /sleepstudy).
     .DESCRIPTION
-    Generates a report of system power transitions over the last three days on
-    the system, including connected standby power efficiency. The
-    SYSTEMPOWERREPORT command will generate an HTML report file in the current
-    path or the designated path.
+    Reports system power transitions over the last three days (or -Duration
+    days), including modern standby / connected standby efficiency.
+
+    There is no public Win32 API for this report, so this calls powercfg.exe,
+    with output captured in memory and the exit code checked. Requires an
+    elevated session.
     .PARAMETER OutFile
-    Full path to where you want the report saved.
-
-    For XML reports make sure the ending extension is .xml
-    Standard Reports are HTML
+    Report path. Relative paths resolve against the current PowerShell
+    location. The extension is corrected to .html or .xml to match the format.
+    Default: .\sleepstudy-report.html (or .xml with -FormatXML).
     .PARAMETER FormatXML
-    If you would prefer the report in XML instead of HTML pass this switch.
-
-    Note: We will attempt to edit the outfile extension for you if you forget too
+    Write the report as XML instead of HTML.
     .PARAMETER Duration
-    Duration of days to go back in history and analyze
+    Number of days of history to analyze.
     .PARAMETER ReformatXML
-    Reformat an XML report into HTML
-
-    Note: This will save the reformatted report into the current path or working directory
+    Convert an existing XML report (-FilePath) to HTML.
     .PARAMETER FilePath
-    Path to an existing XML report that we can convert to HTML
+    Path to an XML report produced with -FormatXML.
     .EXAMPLE
-    Export-SystemPowerReport -OutFile C:\Temp\Test.html
-
-    Export an HTML Power Report
+    Export-SystemPowerReport -OutFile C:\Temp\power.html -Duration 7
     .EXAMPLE
-    Export-SystemPowerReport -ReformatXML -FilePath C:\Temp\Test.XML
+    Export-SystemPowerReport -FormatXML -OutFile C:\Temp\power.xml
+    .EXAMPLE
+    Export-SystemPowerReport -ReformatXML -FilePath C:\Temp\power.xml
 
-    Converts the Test.XML to a sleep-study.html
-    .NOTES
+    Writes C:\Temp\power.html.
+    .OUTPUTS
+    System.IO.FileInfo
     #>
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $false, ParameterSetName = 'OutputReport')]
-        [System.IO.FileInfo]$OutFile = "$($PSScriptRoot)\sleepstudy.html",
-        [Parameter(Mandatory = $false, ParameterSetName = 'OutputReport')]
+    [CmdletBinding(DefaultParameterSetName = 'OutputReport')]
+    [OutputType([System.IO.FileInfo])]
+    param(
+        [Parameter(ParameterSetName = 'OutputReport', Position = 0)]
+        [Parameter(ParameterSetName = 'TransformXML')]
+        [string]$OutFile,
+
+        [Parameter(ParameterSetName = 'OutputReport')]
         [switch]$FormatXML,
-        [Parameter(Mandatory = $false, ParameterSetName = 'OutputReport')]
+
+        [Parameter(ParameterSetName = 'OutputReport')]
+        [ValidateRange(1, 28)]
         [int]$Duration,
-        [Parameter(Mandatory = $false, ParameterSetName = 'TransformXML')]
+
+        [Parameter(ParameterSetName = 'TransformXML', Mandatory = $true)]
         [switch]$ReformatXML,
-        [Parameter(Mandatory = $false, ParameterSetName = 'TransformXML')]
+
+        [Parameter(ParameterSetName = 'TransformXML', Mandatory = $true)]
         [string]$FilePath
     )
+
     begin {
-        If (!(Test-IsAdmin)) {
-            Write-Warning "This command requires administrator privileges and must be executed from an elevated command prompt."
-            break
-        }
+        Assert-IsAdmin -Cmdlet $PSCmdlet
     }
 
     process {
-        If ($FormatXML) {
-            Write-Verbose "Formatting Report as XML"
-            If (!($OutFile.Extension -eq '.xml')) {
-                Write-Verbose "Converting $($OutFile.FullName) to XML"
-                $OutFile = $OutFile.FullName -Replace "$($OutFile.Extension)", ".xml"
-            }
-
-            Start-Process -FilePath powercfg.exe -ArgumentList "/SYSTEMPOWERREPORT /OUTPUT ""$($OutFile)"" /XML" -WindowStyle Hidden -Wait
-            Write-Output "Sleep Study report saved to file path: $($OutFile)"
-            Return
+        $report = @{
+            Cmdlet      = $PSCmdlet
+            Option      = 'systempowerreport'
+            DefaultName = 'sleepstudy-report'
+            OutFile     = $OutFile
         }
-
-        If ($ReformatXML) {
-            If (!(Test-Path -Path "$($FilePath)" -ErrorAction SilentlyContinue)) {
-                Write-Error -Exception [System.IO.FileNotFoundException] -Message "Report file not found. Please enter the correct path to an XML System Power Report and try again."
-                Return
-            }
-            Else {
-                Start-Process -FilePath powercfg.exe -ArgumentList "/SYSTEMPOWERREPORT /TRANSFORMXML ""$($FilePath)""" -WindowStyle Hidden -Wait -WorkingDirectory "$(Split-Path -Path $FilePath -Parent)"
-                Write-Output "Sleep Study report saved to file path: $(Split-Path -Path $FilePath -Parent)\sleepstudy-report.html"
-                Return
-            }
+        if ($PSCmdlet.ParameterSetName -eq 'TransformXML') {
+            $report.TransformXml = $FilePath
         }
-
-        Write-Verbose "Formatting Report as HTML"
-        Start-Process -FilePath powercfg.exe -ArgumentList "/SYSTEMPOWERREPORT /OUTPUT ""$($OutFile)""" -WindowStyle Hidden -Wait
-        Write-Output "Sleep Study report saved to file path: $($OutFile)"
+        else {
+            $report.Xml = $FormatXML
+            $report.Duration = $Duration
+        }
+        Invoke-PowerCfgReport @report
     }
 }
