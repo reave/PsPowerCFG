@@ -6,6 +6,11 @@ function Export-SystemSleepDiagnostics {
     Reports intervals over the last three days (or -Duration days) when the
     user was not present, and whether the system went to sleep.
 
+    DEPRECATED BY WINDOWS: on current Windows 11 builds (verified on 10.0.26300)
+    powercfg /systemsleepdiagnostics only prints a notice pointing to
+    /systempowerreport and writes nothing. This function then throws a
+    ReportNotCreated error carrying that notice. Use Export-SystemPowerReport.
+
     There is no public Win32 API for this report, so this calls powercfg.exe,
     with output captured in memory and the exit code checked. Requires an
     elevated session.

@@ -58,10 +58,11 @@ function Export-SRUMDB {
         $target = Resolve-OutputPath -Cmdlet $PSCmdlet -Path $OutFile -Extension $extension
 
         $arguments = @('/srumutil', '/output', $target, "/$($Format.ToLowerInvariant())")
-        [void](Invoke-PowerCfg -Cmdlet $PSCmdlet -ArgumentList $arguments -WorkingDirectory ([System.IO.Path]::GetDirectoryName($target)))
+        $stdout = (Invoke-PowerCfg -Cmdlet $PSCmdlet -ArgumentList $arguments -WorkingDirectory ([System.IO.Path]::GetDirectoryName($target)))
 
         if (-not [System.IO.File]::Exists($target)) {
-            $exception = [System.IO.FileNotFoundException]::new("powercfg /srumutil reported success but did not create $target", $target)
+            $detail = if ($stdout -and $stdout.Trim()) { ' powercfg said: ' + $stdout.Trim() } else { '' }
+            $exception = [System.IO.FileNotFoundException]::new("powercfg /srumutil exited 0 but did not create $target.$detail", $target)
             $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new(
                     $exception, 'ReportNotCreated', [System.Management.Automation.ErrorCategory]::InvalidResult, $target))
         }

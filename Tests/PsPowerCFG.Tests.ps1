@@ -131,8 +131,16 @@ Describe 'Report functions' {
             $h.Exists | Should -BeTrue
         }
 
-        It 'Export-SystemSleepDiagnostics writes HTML' {
-            (Export-SystemSleepDiagnostics -OutFile (Join-Path $script:out 'ssd.html')).Exists | Should -BeTrue
+        It 'Export-SystemSleepDiagnostics writes HTML, or fails loudly where Windows deprecated it' {
+            try {
+                $f = Export-SystemSleepDiagnostics -OutFile (Join-Path $script:out 'ssd.html') -ErrorAction Stop
+                $f.Exists | Should -BeTrue
+            }
+            catch {
+                $_.FullyQualifiedErrorId | Should -BeLike 'ReportNotCreated*'
+                $_.Exception.Message | Should -BeLike '*powercfg said:*'
+                Set-ItResult -Skipped -Because "powercfg /systemsleepdiagnostics is deprecated on this build: $($_.Exception.Message)"
+            }
         }
 
         It 'Export-SRUMDB writes CSV by default' {
@@ -144,7 +152,7 @@ Describe 'Report functions' {
         It 'resolves relative paths against $PWD, not the process directory' {
             Push-Location $script:out
             try {
-                (Export-SystemSleepDiagnostics -OutFile 'rel.html').DirectoryName | Should -Be $script:out.TrimEnd('\')
+                (Export-SystemPowerReport -OutFile 'rel.html' -Duration 1).DirectoryName | Should -Be $script:out.TrimEnd('\')
             }
             finally { Pop-Location }
         }
