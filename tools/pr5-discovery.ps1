@@ -13,7 +13,8 @@ Changes it makes, all reverted before it exits:
 This file is removed before PR 5 merges.
 #>
 Set-StrictMode -Version 3.0
-$ErrorActionPreference = 'Stop'
+# Continue, not Stop: on 5.1, Stop turns powercfg's stderr into a terminating error.
+$ErrorActionPreference = 'Continue'
 
 Add-Type -Namespace PsPowerCfgDisc -Name N -MemberDefinition @'
 [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);
