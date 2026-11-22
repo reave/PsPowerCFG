@@ -6,7 +6,8 @@ function Export-PowerScheme {
     Windows has no public API that writes the .pow format (PowerImportPowerScheme
     exists, an export counterpart does not), so this runs powercfg.exe /export
     with output captured in memory and the exit code checked. The file can be
-    re-imported with Import-PowerScheme or powercfg /import.
+    re-imported with Import-PowerScheme or powercfg /import. Requires an
+    elevated session (powercfg /export fails with 0x522 otherwise).
     .PARAMETER Guid
     Scheme GUID. Accepts pipeline input from Get-PowerScheme.
     .PARAMETER Path
@@ -27,6 +28,10 @@ function Export-PowerScheme {
         [Parameter(Position = 1)]
         [string]$Path
     )
+
+    begin {
+        Assert-IsAdmin -Cmdlet $PSCmdlet
+    }
 
     process {
         if (-not $Path) {

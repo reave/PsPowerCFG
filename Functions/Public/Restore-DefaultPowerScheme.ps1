@@ -10,7 +10,8 @@ function Restore-DefaultPowerScheme {
     built-in scheme AND DELETES ALL CUSTOM SCHEMES. Guards:
       - -All must be passed explicitly; there is no default "restore everything".
       - Every custom scheme is first exported to a .pow file under -BackupPath.
-        If any export fails, nothing is restored.
+        If any export fails, nothing is restored. The backup needs an elevated
+        session.
       - Prompts for confirmation (ConfirmImpact High) and lists what will be
         deleted.
     Skip the backup only with -NoBackup.
@@ -71,6 +72,10 @@ function Restore-DefaultPowerScheme {
             }
             return
         }
+
+        # The .pow backup uses powercfg /export, which needs elevation. Fail
+        # before prompting rather than after.
+        if (-not $NoBackup) { Assert-IsAdmin -Cmdlet $PSCmdlet }
 
         $custom = @([PsPowerCfg.PowerApi]::GetSchemes() | Where-Object { $script:BuiltInPowerSchemes -notcontains $_.Guid })
         $names = if ($custom.Count) { ($custom | ForEach-Object { "'$($_.Name)'" }) -join ', ' } else { 'none' }

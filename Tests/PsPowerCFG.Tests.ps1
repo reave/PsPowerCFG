@@ -170,7 +170,7 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
         (Get-PowerScheme).Guid | Should -Contain $script:created[0]
     }
 
-    It 'Export-PowerScheme writes a .pow file' {
+    It 'Export-PowerScheme writes a .pow file' -Skip:(-not $isAdmin) {
         $f = Export-PowerScheme -Guid $script:created[0] -Path (Join-Path $script:tmp 'x.pow')
         $f | Should -BeOfType [IO.FileInfo]
         $f.Length | Should -BeGreaterThan 0
@@ -190,6 +190,11 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
         (Get-PowerScheme).Guid | Should -Not -Contain $victim.Guid
     }
 
+    It 'Export-PowerScheme and Restore -All throw ElevationRequired when not elevated' -Skip:$isAdmin {
+        { Export-PowerScheme -Guid $script:source.Guid -Path (Join-Path $script:tmp 'n.pow') } | Should -Throw -ErrorId 'ElevationRequired,Export-PowerScheme'
+        { Restore-DefaultPowerScheme -All -WhatIf } | Should -Throw -ErrorId 'ElevationRequired,Restore-DefaultPowerScheme'
+    }
+
     It 'Remove-PowerScheme refuses a built-in scheme without -Force' {
         $builtIn = Get-PowerScheme | Where-Object { -not $_.IsActive -and $_.Guid -in @([guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', [guid]'a1841308-3541-4fab-bc81-f71556f20b4a') } | Select-Object -First 1
         if (-not $builtIn) { Set-ItResult -Skipped -Because 'no inactive built-in scheme'; return }
@@ -203,7 +208,7 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
         { Restore-DefaultPowerScheme -Confirm:$false -ErrorAction Stop } | Should -Throw
     }
 
-    It 'Restore-DefaultPowerScheme -All -WhatIf changes nothing and writes no backup' {
+    It 'Restore-DefaultPowerScheme -All -WhatIf changes nothing and writes no backup' -Skip:(-not $isAdmin) {
         $before = @((Get-PowerScheme).Guid | Sort-Object)
         $out = Restore-DefaultPowerScheme -All -BackupPath (Join-Path $script:tmp 'bk') -WhatIf
         $out | Should -BeNullOrEmpty
