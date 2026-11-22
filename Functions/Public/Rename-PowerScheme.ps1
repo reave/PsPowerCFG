@@ -1,0 +1,45 @@
+function Rename-PowerScheme {
+    <#
+    .SYNOPSIS
+    Changes a power scheme's name and optionally its description. Equivalent to powercfg /changename.
+    .PARAMETER Guid
+    Scheme GUID. Accepts pipeline input from Get-PowerScheme.
+    .PARAMETER NewName
+    New friendly name.
+    .PARAMETER Description
+    New description. Left unchanged when omitted.
+    .PARAMETER PassThru
+    Return the updated scheme.
+    .EXAMPLE
+    Rename-PowerScheme -Guid 381b4222-f694-41f0-9685-ff5bb260df2e -NewName 'Customized Balanced'
+    .OUTPUTS
+    None, or PsPowerCfg.PowerScheme with -PassThru.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    [OutputType([PsPowerCfg.PowerScheme])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipelineByPropertyName = $true)]
+        [Alias('ID', 'SchemeGuid')]
+        [guid]$Guid,
+
+        [Parameter(Mandatory = $true, Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [string]$NewName,
+
+        [string]$Description,
+
+        [switch]$PassThru
+    )
+
+    process {
+        if (-not $PSCmdlet.ShouldProcess("$Guid", "Rename power scheme to '$NewName'")) { return }
+        try {
+            [PsPowerCfg.PowerApi]::WriteFriendlyName($Guid, $null, $null, $NewName)
+            if ($PSBoundParameters.ContainsKey('Description')) { [PsPowerCfg.PowerApi]::WriteDescription($Guid, $null, $null, $Description) }
+            if ($PassThru) { [PsPowerCfg.PowerApi]::GetScheme($Guid) }
+        }
+        catch {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RenamePowerSchemeFailed' -TargetObject $Guid))
+        }
+    }
+}

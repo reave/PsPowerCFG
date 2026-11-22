@@ -7,6 +7,8 @@ BeforeDiscovery {
     # -Skip is evaluated during discovery, before any BeforeAll runs, so the
     # elevation check has to happen here.
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    # Tests that create/activate/delete schemes only run when opted in.
+    $runMutating = $env:PSPOWERCFG_MUTATING -eq '1'
 }
 
 BeforeAll {
@@ -34,7 +36,11 @@ Describe 'Module' {
 
     It 'exports exactly the manifest functions' {
         $cmds = (Get-Command -Module PsPowerCFG -CommandType Function).Name | Sort-Object
-        $cmds | Should -Be (@('Export-SRUMDB', 'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Get-ActivePowerScheme', 'Get-PowerScheme') | Sort-Object)
+        $expected = @(
+            'Get-PowerScheme', 'Get-ActivePowerScheme', 'Set-ActivePowerScheme', 'Copy-PowerScheme', 'Rename-PowerScheme',
+            'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme', 'Restore-DefaultPowerScheme',
+            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB')
+        $cmds | Should -Be ($expected | Sort-Object)
     }
 
     It 'keeps the Get-PowerSchemes alias' {
@@ -97,6 +103,117 @@ Describe 'Get-ActivePowerScheme' {
 
     It 'reports IsActive' {
         (Get-ActivePowerScheme).IsActive | Should -BeTrue
+    }
+}
+
+Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
+    BeforeAll {
+        $script:originalActive = [PsPowerCfg.PowerApi]::GetActiveScheme()
+        $script:created = [System.Collections.Generic.List[guid]]::new()
+        $script:tmp = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-scheme-' + [guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($script:tmp)
+        $script:source = Get-ActivePowerScheme
+    }
+    AfterAll {
+        [PsPowerCfg.PowerApi]::SetActiveScheme($script:originalActive)
+        $builtIn = @(
+            [guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
+            [guid]'a1841308-3541-4fab-bc81-f71556f20b4a', [guid]'e9a42b02-d5df-448d-aa00-03f14749eb61')
+        # Only ever delete schemes this suite named; never a built-in GUID.
+        $leftovers = [PsPowerCfg.PowerApi]::GetSchemes() | Where-Object {
+            $_.Name -like 'PsPowerCFG*' -and $builtIn -notcontains $_.Guid -and $_.Guid -ne $script:originalActive
+        }
+        foreach ($s in $leftovers) {
+            try { [PsPowerCfg.PowerApi]::DeleteScheme($s.Guid) } catch { Write-Warning "cleanup $($s.Name): $($_.Exception.Message)" }
+        }
+        Remove-Item -LiteralPath $script:tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'Copy-PowerScheme duplicates with a new name and description' {
+        $copy = $script:source | Copy-PowerScheme -NewName 'PsPowerCFG test copy' -Description 'temporary'
+        $script:created.Add($copy.Guid)
+        $copy.Guid | Should -Not -Be $script:source.Guid
+        $copy.Name | Should -Be 'PsPowerCFG test copy'
+        $copy.Description | Should -Be 'temporary'
+        (Get-PowerScheme).Guid | Should -Contain $copy.Guid
+    }
+
+    It 'Copy-PowerScheme honors -DestinationGuid' {
+        $dest = [guid]::NewGuid()
+        $copy = Copy-PowerScheme -Guid $script:source.Guid -DestinationGuid $dest -NewName 'PsPowerCFG test dest'
+        $script:created.Add($copy.Guid)
+        $copy.Guid | Should -Be $dest
+        $copy.Name | Should -Be 'PsPowerCFG test dest'
+    }
+
+    It 'Rename-PowerScheme changes the name' {
+        $r = Rename-PowerScheme -Guid $script:created[0] -NewName 'PsPowerCFG renamed' -PassThru
+        $r.Name | Should -Be 'PsPowerCFG renamed'
+        (powercfg.exe /list | Out-String) | Should -Match 'PsPowerCFG renamed'
+    }
+
+    It 'Set-ActivePowerScheme activates by GUID and by name' {
+        Set-ActivePowerScheme -Guid $script:created[0]
+        (Get-ActivePowerScheme).Guid | Should -Be $script:created[0]
+        $p = Set-ActivePowerScheme -Name $script:source.Name -PassThru
+        $p.Guid | Should -Be $script:source.Guid
+        $p.IsActive | Should -BeTrue
+    }
+
+    It 'Remove-PowerScheme refuses the active scheme' {
+        Remove-PowerScheme -Guid (Get-ActivePowerScheme).Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsActive*'
+    }
+
+    It 'Remove-PowerScheme -WhatIf deletes nothing' {
+        Remove-PowerScheme -Guid $script:created[0] -WhatIf
+        (Get-PowerScheme).Guid | Should -Contain $script:created[0]
+    }
+
+    It 'Export-PowerScheme writes a .pow file' -Skip:(-not $isAdmin) {
+        $f = Export-PowerScheme -Guid $script:created[0] -Path (Join-Path $script:tmp 'x.pow')
+        $f | Should -BeOfType [IO.FileInfo]
+        $f.Length | Should -BeGreaterThan 0
+    }
+
+    It 'Import-PowerScheme round-trips an export' -Skip:(-not $isAdmin) {
+        $s = Import-PowerScheme -Path (Join-Path $script:tmp 'x.pow') -NewName 'PsPowerCFG imported'
+        $script:created.Add($s.Guid)
+        $s.Name | Should -Be 'PsPowerCFG imported'
+        (Get-PowerScheme).Guid | Should -Contain $s.Guid
+    }
+
+    It 'Remove-PowerScheme deletes from the pipeline' {
+        $victim = Copy-PowerScheme -Guid $script:source.Guid -NewName 'PsPowerCFG delete me'
+        $script:created.Add($victim.Guid)
+        $victim | Remove-PowerScheme -Confirm:$false
+        (Get-PowerScheme).Guid | Should -Not -Contain $victim.Guid
+    }
+
+    It 'Export-PowerScheme and Restore -All throw ElevationRequired when not elevated' -Skip:$isAdmin {
+        { Export-PowerScheme -Guid $script:source.Guid -Path (Join-Path $script:tmp 'n.pow') } | Should -Throw -ErrorId 'ElevationRequired,Export-PowerScheme'
+        { Restore-DefaultPowerScheme -All -WhatIf } | Should -Throw -ErrorId 'ElevationRequired,Restore-DefaultPowerScheme'
+    }
+
+    It 'Remove-PowerScheme refuses a built-in scheme without -Force' {
+        $builtIn = Get-PowerScheme | Where-Object { -not $_.IsActive -and $_.Guid -in @([guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', [guid]'a1841308-3541-4fab-bc81-f71556f20b4a') } | Select-Object -First 1
+        if (-not $builtIn) { Set-ItResult -Skipped -Because 'no inactive built-in scheme'; return }
+        Remove-PowerScheme -Guid $builtIn.Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsBuiltIn*'
+        (Get-PowerScheme).Guid | Should -Contain $builtIn.Guid
+    }
+
+    It 'Restore-DefaultPowerScheme requires -All for the full reset' {
+        (Get-Command Restore-DefaultPowerScheme).ParameterSets.Name | Should -Not -Contain '__AllParameterSets'
+        { Restore-DefaultPowerScheme -Confirm:$false -ErrorAction Stop } | Should -Throw
+    }
+
+    It 'Restore-DefaultPowerScheme -All -WhatIf changes nothing and writes no backup' -Skip:(-not $isAdmin) {
+        $before = @((Get-PowerScheme).Guid | Sort-Object)
+        $out = Restore-DefaultPowerScheme -All -BackupPath (Join-Path $script:tmp 'bk') -WhatIf
+        $out | Should -BeNullOrEmpty
+        Test-Path (Join-Path $script:tmp 'bk') | Should -BeFalse
+        @((Get-PowerScheme).Guid | Sort-Object) | Should -Be $before
     }
 }
 

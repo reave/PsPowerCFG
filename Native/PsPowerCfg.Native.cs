@@ -85,6 +85,48 @@ namespace PsPowerCfg
             IntPtr userRootPowerKey,
             out IntPtr activePolicyGuid);
 
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerSetActiveScheme(IntPtr userRootPowerKey, Guid[] schemeGuid);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerDuplicateScheme(
+            IntPtr rootPowerKey,
+            Guid[] sourceSchemeGuid,
+            ref IntPtr destinationSchemeGuid);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerDeleteScheme(IntPtr rootPowerKey, Guid[] schemeGuid);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerWriteFriendlyName(
+            IntPtr rootPowerKey,
+            Guid[] schemeGuid,
+            Guid[] subGroupOfPowerSettingsGuid,
+            Guid[] powerSettingGuid,
+            byte[] buffer,
+            uint bufferSize);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerWriteDescription(
+            IntPtr rootPowerKey,
+            Guid[] schemeGuid,
+            Guid[] subGroupOfPowerSettingsGuid,
+            Guid[] powerSettingGuid,
+            byte[] buffer,
+            uint bufferSize);
+
+        [DllImport("powrprof.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern uint PowerImportPowerScheme(
+            IntPtr rootPowerKey,
+            string importFileNamePath,
+            ref IntPtr destinationSchemeGuid);
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerRestoreDefaultPowerSchemes();
+
+        [DllImport("powrprof.dll", ExactSpelling = true)]
+        internal static extern uint PowerRestoreIndividualDefaultPowerScheme(Guid[] schemeGuid);
+
         [DllImport("kernel32.dll", ExactSpelling = true)]
         internal static extern IntPtr LocalFree(IntPtr hMem);
     }
@@ -92,8 +134,18 @@ namespace PsPowerCfg
     internal delegate uint PowerReadStringFn(
         IntPtr root, Guid[] scheme, Guid[] sub, Guid[] setting, byte[] buffer, ref uint size);
 
+    internal delegate uint PowerWriteStringFn(
+        IntPtr root, Guid[] scheme, Guid[] sub, Guid[] setting, byte[] buffer, uint size);
+
+    internal delegate uint GuidOutFn(ref IntPtr destination);
+
     public static class PowerApi
     {
+        // Set by the module loader to the hash of the source this assembly was
+        // built from, so a re-import after an upgrade can detect that an older
+        // build is still loaded (a loaded .NET type cannot be replaced).
+        public static string LoadedSourceHash;
+
         private static Guid[] Wrap(Guid? g)
         {
             return g.HasValue ? new Guid[] { g.Value } : null;
@@ -173,6 +225,89 @@ namespace PsPowerCfg
         public static string ReadDescription(Guid? scheme, Guid? subgroup, Guid? setting)
         {
             return ReadString(NativeMethods.PowerReadDescription, "PowerReadDescription", scheme, subgroup, setting);
+        }
+
+        private static void Check(string api, uint rc)
+        {
+            if (rc != NativeMethods.ERROR_SUCCESS) { throw Fail(api, rc); }
+        }
+
+        // For APIs that take GUID** and either fill a caller-supplied GUID or
+        // LocalAlloc a new one when *ptr is NULL.
+        private static Guid InvokeGuidOut(string api, Guid? requested, GuidOutFn fn)
+        {
+            IntPtr mine = IntPtr.Zero;
+            if (requested.HasValue)
+            {
+                mine = Marshal.AllocHGlobal(16);
+                Marshal.StructureToPtr(requested.Value, mine, false);
+            }
+            IntPtr p = mine;
+            try
+            {
+                Check(api, fn(ref p));
+                return (Guid)Marshal.PtrToStructure(p, typeof(Guid));
+            }
+            finally
+            {
+                if (p != IntPtr.Zero && p != mine) { NativeMethods.LocalFree(p); }
+                if (mine != IntPtr.Zero) { Marshal.FreeHGlobal(mine); }
+            }
+        }
+
+        private static void WriteString(PowerWriteStringFn fn, string api, Guid? scheme, Guid? subgroup, Guid? setting, string value)
+        {
+            if (value == null) { throw new ArgumentNullException("value"); }
+            byte[] buffer = Encoding.Unicode.GetBytes(value + "\0");
+            Check(api, fn(IntPtr.Zero, Wrap(scheme), Wrap(subgroup), Wrap(setting), buffer, (uint)buffer.Length));
+        }
+
+        public static void WriteFriendlyName(Guid? scheme, Guid? subgroup, Guid? setting, string value)
+        {
+            WriteString(NativeMethods.PowerWriteFriendlyName, "PowerWriteFriendlyName", scheme, subgroup, setting, value);
+        }
+
+        public static void WriteDescription(Guid? scheme, Guid? subgroup, Guid? setting, string value)
+        {
+            WriteString(NativeMethods.PowerWriteDescription, "PowerWriteDescription", scheme, subgroup, setting, value);
+        }
+
+        public static void SetActiveScheme(Guid scheme)
+        {
+            Check("PowerSetActiveScheme", NativeMethods.PowerSetActiveScheme(IntPtr.Zero, new Guid[] { scheme }));
+        }
+
+        public static Guid DuplicateScheme(Guid source, Guid? destination)
+        {
+            Guid[] src = new Guid[] { source };
+            return InvokeGuidOut("PowerDuplicateScheme", destination,
+                (ref IntPtr d) => NativeMethods.PowerDuplicateScheme(IntPtr.Zero, src, ref d));
+        }
+
+        public static void DeleteScheme(Guid scheme)
+        {
+            Check("PowerDeleteScheme", NativeMethods.PowerDeleteScheme(IntPtr.Zero, new Guid[] { scheme }));
+        }
+
+        public static Guid ImportScheme(string path, Guid? destination)
+        {
+            return InvokeGuidOut("PowerImportPowerScheme", destination,
+                (ref IntPtr d) => NativeMethods.PowerImportPowerScheme(IntPtr.Zero, path, ref d));
+        }
+
+        public static void RestoreDefaultSchemes()
+        {
+            Check("PowerRestoreDefaultPowerSchemes", NativeMethods.PowerRestoreDefaultPowerSchemes());
+        }
+
+        public static void RestoreDefaultScheme(Guid scheme)
+        {
+            Check("PowerRestoreIndividualDefaultPowerScheme", NativeMethods.PowerRestoreIndividualDefaultPowerScheme(new Guid[] { scheme }));
+        }
+
+        public static PowerScheme GetScheme(Guid scheme)
+        {
+            return GetScheme(scheme, GetActiveScheme());
         }
 
         public static PowerScheme GetScheme(Guid scheme, Guid activeScheme)

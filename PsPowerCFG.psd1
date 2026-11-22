@@ -1,6 +1,6 @@
 @{
     RootModule           = 'PsPowerCFG.psm1'
-    ModuleVersion        = '1.1.0'
+    ModuleVersion        = '1.2.0'
     GUID                 = '4c864518-13d1-4a7e-a7e3-7c6080b2e6e8'
     Author               = 'reave'
     Copyright            = '(c) reave. All rights reserved.'
@@ -17,6 +17,13 @@
     FunctionsToExport    = @(
         'Get-PowerScheme'
         'Get-ActivePowerScheme'
+        'Set-ActivePowerScheme'
+        'Copy-PowerScheme'
+        'Rename-PowerScheme'
+        'Remove-PowerScheme'
+        'Import-PowerScheme'
+        'Export-PowerScheme'
+        'Restore-DefaultPowerScheme'
         'Export-SystemPowerReport'
         'Export-SystemSleepDiagnostics'
         'Export-SRUMDB'

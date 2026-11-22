@@ -10,6 +10,13 @@ Scheme and setting operations call `powrprof.dll` directly through a small C# P/
 |---|---|---|
 | `Get-PowerScheme` (alias `Get-PowerSchemes`) | `/list` | powrprof.dll |
 | `Get-ActivePowerScheme` | `/getactivescheme` | powrprof.dll |
+| `Set-ActivePowerScheme` | `/setactive` | powrprof.dll |
+| `Copy-PowerScheme` | `/duplicatescheme` | powrprof.dll |
+| `Rename-PowerScheme` | `/changename` | powrprof.dll |
+| `Remove-PowerScheme` | `/delete` | powrprof.dll |
+| `Import-PowerScheme` | `/import` | powrprof.dll (admin) |
+| `Export-PowerScheme` | `/export` | powercfg.exe (no public export API for .pow) |
+| `Restore-DefaultPowerScheme` | `/restoredefaultschemes` | powrprof.dll |
 | `Export-SystemPowerReport` | `/systempowerreport`, `/sleepstudy` | powercfg.exe (admin) |
 | `Export-SystemSleepDiagnostics` | `/systemsleepdiagnostics` | powercfg.exe (admin) |
 | `Export-SRUMDB` | `/srumutil` | powercfg.exe (admin) |
@@ -35,4 +42,4 @@ powershell.exe -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 pwsh.exe       -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 ```
 
-Report tests only run when elevated.
+Report and import tests only run when elevated. Tests tagged `Mutating` create, activate and delete temporary `PsPowerCFG*` schemes. They are skipped unless you opt in with `$env:PSPOWERCFG_MUTATING = '1'`. They restore the original active scheme and delete only schemes whose name starts with `PsPowerCFG` (never a built-in GUID).
