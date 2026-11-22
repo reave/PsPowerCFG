@@ -4,7 +4,7 @@ function Set-PowerSecurityDescriptor {
     Sets the SDDL security descriptor of a power scheme, setting or action. Equivalent to powercfg /setsecuritydescriptor.
     .DESCRIPTION
     Calls PowerWriteSecurityDescriptor. The SDDL is parsed with
-    System.Security.AccessControl.RawSecurityDescriptor first, so a malformed
+    ConvertStringSecurityDescriptorToSecurityDescriptor first, so a malformed
     string is rejected before anything is written. Requires an elevated
     session. Prompts for confirmation (ConfirmImpact High): a wrong descriptor
     can lock standard users or even administrators out of power settings.
@@ -39,11 +39,9 @@ function Set-PowerSecurityDescriptor {
     }
 
     process {
-        try {
-            [void][System.Security.AccessControl.RawSecurityDescriptor]::new($Sddl)
-        }
-        catch {
-            $exception = [System.ArgumentException]::new("Invalid SDDL: $($_.Exception.Message)")
+        $parseError = [PsPowerCfg.PowerApi]::ValidateSddl($Sddl)
+        if ($null -ne $parseError) {
+            $exception = [System.ArgumentException]::new("Invalid SDDL: $parseError")
             $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
                     $exception, 'InvalidSddl', [System.Management.Automation.ErrorCategory]::InvalidArgument, $Sddl))
             return

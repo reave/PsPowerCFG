@@ -253,6 +253,11 @@ namespace PsPowerCfg
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
         internal static extern IntPtr LocalFree(IntPtr hMem);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            string stringSecurityDescriptor, uint stringSDRevision, out IntPtr securityDescriptor, IntPtr securityDescriptorSize);
     }
 
     internal delegate uint PowerReadStringFn(
@@ -695,6 +700,23 @@ namespace PsPowerCfg
             {
                 if (p != IntPtr.Zero) { NativeMethods.LocalFree(p); }
             }
+        }
+
+        // Returns null when sddl parses, else the Win32 error message. Uses the
+        // same parser PowerWriteSecurityDescriptor does, and no exception: a
+        // .NET exception caught in a PowerShell try/catch still lands in the
+        // caller's -ErrorVariable.
+        public static string ValidateSddl(string sddl)
+        {
+            IntPtr sd;
+            if (string.IsNullOrEmpty(sddl)) { return "The SDDL string is empty."; }
+            if (!NativeMethods.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out sd, IntPtr.Zero))
+            {
+                int rc = Marshal.GetLastWin32Error();
+                return new Win32Exception(rc).Message + " (0x" + rc.ToString("X8") + ")";
+            }
+            NativeMethods.LocalFree(sd);
+            return null;
         }
 
         public static void WriteSecurityDescriptor(uint accessor, Guid? guid, string sddl)
