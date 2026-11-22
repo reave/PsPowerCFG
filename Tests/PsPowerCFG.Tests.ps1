@@ -447,7 +447,7 @@ Describe 'Get-PowerCapability' {
     }
     It 'returns the full SYSTEM_POWER_CAPABILITIES buffer' {
         $script:caps | Should -BeOfType ([PsPowerCfg.PowerCapabilities])
-        $script:caps.Raw.Length | Should -Be 84
+        $script:caps.Raw.Length | Should -Be 76
     }
     It 'reports HiberFilePresent the same as the file system' {
         $file = [IO.Path]::Combine($env:SystemDrive + '\', 'hiberfil.sys')
@@ -458,12 +458,16 @@ Describe 'Get-PowerCapability' {
         @{ Label = 'S2'; Property = 'StandbyS2'; Pattern = 'S2' }
         @{ Label = 'S3'; Property = 'StandbyS3'; Pattern = 'S3' }
         @{ Label = 'S0 low power idle'; Property = 'StandbyS0LowPowerIdle'; Pattern = 'S0 Low Power Idle' }
-        @{ Label = 'Hibernate'; Property = 'Hibernate'; Pattern = '(?m)^\s*Hibernate' }
         @{ Label = 'Hybrid sleep'; Property = 'HybridSleep'; Pattern = 'Hybrid Sleep' }
         @{ Label = 'Fast startup'; Property = 'FastStartup'; Pattern = 'Fast Startup' }
     ) {
         if (-not $script:english) { Set-ItResult -Skipped -Because 'powercfg output is not English'; return }
         $script:caps.$Property | Should -Be ($script:available -match $Pattern) -Because "powercfg /a said:`n$script:cliA"
+    }
+    It 'agrees with powercfg /availablesleepstates on Hibernate (supported and turned on)' {
+        if (-not $script:english) { Set-ItResult -Skipped -Because 'powercfg output is not English'; return }
+        $ours = $script:caps.HibernateSupported -and (Get-PowerHibernate).Enabled
+        $ours | Should -Be ($script:available -match '(?m)^\s*Hibernate') -Because "powercfg /a said:`n$script:cliA"
     }
 }
 
@@ -495,7 +499,9 @@ Describe 'Get-PowerDevice' {
     It 'matches powercfg /devicequery <Flag>' -ForEach $queries {
         $cli = @(powercfg.exe /devicequery $Flag | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'NONE' })
         if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
-        $ours = @(Get-PowerDevice -Query $Query | ForEach-Object Name)
+        # powercfg pads some names with trailing spaces; the API returns
+        # them the same way, so trim both sides before comparing.
+        $ours = @(Get-PowerDevice -Query $Query | ForEach-Object { $_.Name.Trim() } | Where-Object { $_ })
         ($ours | Sort-Object) -join "`n" | Should -Be (($cli | Sort-Object) -join "`n")
     }
     It 'marks armed devices as programmable' {

@@ -35,7 +35,7 @@ function Get-PowerHibernate {
     [pscustomobject]@{
         PSTypeName            = 'PsPowerCfg.PowerHibernate'
         Enabled               = $enabled
-        Available             = $caps.Hibernate
+        Available             = $caps.HibernateSupported
         HiberFilePresent      = $caps.HiberFilePresent
         HiberFileType         = $caps.HiberFileType
         HiberFileSizePercent  = $power['HiberFileSizePercent']

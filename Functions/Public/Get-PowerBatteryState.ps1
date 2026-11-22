@@ -5,7 +5,8 @@ function Get-PowerBatteryState {
     .DESCRIPTION
     Calls CallNtPowerInformation(SystemBatteryState), which combines all
     batteries into one view. Capacities are in mWh on most systems, and Rate
-    is in mW: positive while charging, negative while discharging.
+    is in mW: positive while charging, negative while discharging, and empty
+    when the battery does not report it.
     EstimatedTime is empty while on AC or while Windows has no estimate yet.
 
     For per-battery design capacity, chemistry and cycle count, use

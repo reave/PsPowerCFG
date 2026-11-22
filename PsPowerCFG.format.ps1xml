@@ -135,7 +135,7 @@
               <ListItem><PropertyName>StandbyS3</PropertyName></ListItem>
               <ListItem><PropertyName>StandbyS0LowPowerIdle</PropertyName></ListItem>
               <ListItem><PropertyName>S0NetworkConnected</PropertyName></ListItem>
-              <ListItem><PropertyName>Hibernate</PropertyName></ListItem>
+              <ListItem><PropertyName>HibernateSupported</PropertyName></ListItem>
               <ListItem><PropertyName>HybridSleep</PropertyName></ListItem>
               <ListItem><PropertyName>FastStartup</PropertyName></ListItem>
               <ListItem><PropertyName>HiberFilePresent</PropertyName></ListItem>

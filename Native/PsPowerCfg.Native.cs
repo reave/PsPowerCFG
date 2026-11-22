@@ -1201,7 +1201,10 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
         public bool StandbyS1 { get; internal set; }
         public bool StandbyS2 { get; internal set; }
         public bool StandbyS3 { get; internal set; }
-        public bool Hibernate { get; internal set; }
+        // S4 is supported by the platform. powercfg /a lists Hibernate as
+        // available only when this is true and hibernate is turned on
+        // (Get-PowerHibernate).
+        public bool HibernateSupported { get; internal set; }
         public bool SoftOffS5 { get; internal set; }
         public bool HybridSleep { get; internal set; }
         public bool FastStartup { get; internal set; }
@@ -1240,8 +1243,9 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
         public uint MaxCapacity { get; internal set; }
         public uint RemainingCapacity { get; internal set; }
         public double? Percent { get; internal set; }
-        // mW; positive while charging, negative while discharging.
-        public int Rate { get; internal set; }
+        // mW; positive while charging, negative while discharging; null
+        // when the battery does not report it (BATTERY_UNKNOWN_RATE).
+        public int? Rate { get; internal set; }
         public TimeSpan? EstimatedTime { get; internal set; }
         public uint DefaultAlert1 { get; internal set; }
         public uint DefaultAlert2 { get; internal set; }
@@ -1261,10 +1265,14 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
 
     public static class PowerInfo
     {
-        // sizeof(SYSTEM_POWER_CAPABILITIES) on x64 and x86: 37 bytes of
-        // BOOLEAN/BYTE members, padding to 40, BATTERY_REPORTING_SCALE[3]
-        // (24 bytes) and five SYSTEM_POWER_STATE enums (20 bytes).
-        internal const int CapabilitiesSize = 84;
+        // sizeof(SYSTEM_POWER_CAPABILITIES) with the current winnt.h layout
+        // (NTDDI >= WINXP and >= WINTHRESHOLD): 32 bytes of BOOLEAN/BYTE
+        // members, BATTERY_REPORTING_SCALE[3] (24 bytes) and five
+        // SYSTEM_POWER_STATE enums (20 bytes). The Learn page shows the
+        // pre-XP spare2/ProcessorThrottleScale members, which shift every
+        // offset after byte 15; verified on Windows 11 26100 against battery
+        // presence (byte 30) and RtcWake (byte 64).
+        internal const int CapabilitiesSize = 76;
         internal const int BatteryStateSize = 32;
 
         internal static byte[] Query(int level, int size)
@@ -1289,7 +1297,7 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             c.StandbyS1 = b[3] != 0;
             c.StandbyS2 = b[4] != 0;
             c.StandbyS3 = b[5] != 0;
-            c.Hibernate = b[6] != 0;
+            c.HibernateSupported = b[6] != 0;
             c.SoftOffS5 = b[7] != 0;
             c.HiberFilePresent = b[8] != 0;
             c.FullWake = b[9] != 0;
@@ -1299,24 +1307,23 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             c.ThermalControl = b[13] != 0;
             c.ProcessorThrottle = b[14] != 0;
             c.ProcessorMinThrottle = b[15];
-            // b[16] ProcessorThrottleScale, b[17..20] spare2.
-            c.ProcessorMaxThrottle = b[21];
-            c.HybridSleep = b[22] != 0;           // FastSystemS4
-            c.FastStartup = b[23] != 0;           // Hiberboot
-            c.WakeAlarmPresent = b[24] != 0;
-            c.StandbyS0LowPowerIdle = b[25] != 0; // AoAc
-            c.DiskSpinDown = b[26] != 0;
-            c.HiberFileType = (HiberFileType)b[27];
-            c.S0NetworkConnected = b[28] != 0;    // AoAcConnectivitySupported
-            // b[29..34] spare3.
-            c.SystemBatteriesPresent = b[35] != 0;
-            c.BatteriesAreShortTerm = b[36] != 0;
-            // b[40..63] BatteryScale[3].
-            c.AcOnLineWake = (SystemPowerState)BitConverter.ToInt32(b, 64);
-            c.SoftLidWake = (SystemPowerState)BitConverter.ToInt32(b, 68);
-            c.RtcWake = (SystemPowerState)BitConverter.ToInt32(b, 72);
-            c.MinDeviceWakeState = (SystemPowerState)BitConverter.ToInt32(b, 76);
-            c.DefaultLowLatencyWake = (SystemPowerState)BitConverter.ToInt32(b, 80);
+            c.ProcessorMaxThrottle = b[16];
+            c.HybridSleep = b[17] != 0;           // FastSystemS4
+            c.FastStartup = b[18] != 0;           // Hiberboot
+            c.WakeAlarmPresent = b[19] != 0;
+            c.StandbyS0LowPowerIdle = b[20] != 0; // AoAc
+            c.DiskSpinDown = b[21] != 0;
+            c.HiberFileType = (HiberFileType)b[22];
+            c.S0NetworkConnected = b[23] != 0;    // AoAcConnectivitySupported
+            // b[24..29] spare3.
+            c.SystemBatteriesPresent = b[30] != 0;
+            c.BatteriesAreShortTerm = b[31] != 0;
+            // b[32..55] BatteryScale[3].
+            c.AcOnLineWake = (SystemPowerState)BitConverter.ToInt32(b, 56);
+            c.SoftLidWake = (SystemPowerState)BitConverter.ToInt32(b, 60);
+            c.RtcWake = (SystemPowerState)BitConverter.ToInt32(b, 64);
+            c.MinDeviceWakeState = (SystemPowerState)BitConverter.ToInt32(b, 68);
+            c.DefaultLowLatencyWake = (SystemPowerState)BitConverter.ToInt32(b, 72);
             c.Raw = b;
             return c;
         }
@@ -1347,7 +1354,8 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             // b[4..6] Spare1, b[7] Tag.
             s.MaxCapacity = BitConverter.ToUInt32(b, 8);
             s.RemainingCapacity = BitConverter.ToUInt32(b, 12);
-            s.Rate = BitConverter.ToInt32(b, 16);
+            int rate = BitConverter.ToInt32(b, 16);
+            if (rate != int.MinValue) { s.Rate = rate; }
             uint seconds = BitConverter.ToUInt32(b, 20);
             // BATTERY_UNKNOWN_TIME = 0xFFFFFFFF; 0 also means not estimated.
             if (seconds != 0xFFFFFFFF && seconds != 0) { s.EstimatedTime = TimeSpan.FromSeconds(seconds); }
@@ -1457,8 +1465,39 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             }
         }
 
+        // DevicePowerEnumDevices rebuilds the device list on every call
+        // unless it is already open, which costs seconds per call on a
+        // machine with a few hundred devices. Open it once per outermost
+        // call; nested calls reuse it.
+        private static readonly object s_lock = new object();
+        private static int s_openDepth;
+        private static bool s_opened;
+
+        private static void Open()
+        {
+            lock (s_lock)
+            {
+                if (s_openDepth++ == 0) { s_opened = DevicePowerNative.DevicePowerOpen(0); }
+            }
+        }
+
+        private static void Close()
+        {
+            lock (s_lock)
+            {
+                if (--s_openDepth == 0 && s_opened) { DevicePowerNative.DevicePowerClose(); s_opened = false; }
+            }
+        }
+
         // Raw enumeration with explicit flags, for diagnosing powercfg parity.
         public static string[] EnumerateRaw(uint interpretation, uint flags)
+        {
+            Open();
+            try { return EnumerateOpen(interpretation, flags); }
+            finally { Close(); }
+        }
+
+        private static string[] EnumerateOpen(uint interpretation, uint flags)
         {
             List<string> names = new List<string>();
             byte[] buffer = new byte[4096];
@@ -1484,9 +1523,8 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
 
         public static PowerDevice[] GetDevices(PowerDeviceQuery query)
         {
-            // One open for the three enumerations: opening the device list is
-            // the expensive part.
-            bool opened = DevicePowerNative.DevicePowerOpen(0);
+            // One open for the three enumerations.
+            Open();
             try
             {
                 string[] names = Enumerate(query);
@@ -1507,7 +1545,7 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             }
             finally
             {
-                if (opened) { DevicePowerNative.DevicePowerClose(); }
+                Close();
             }
         }
 
@@ -1520,6 +1558,13 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
 
         // Arms or disarms wake, then re-reads the armed list to confirm.
         public static PowerDevice SetWake(string name, bool enable)
+        {
+            Open();
+            try { return SetWakeOpen(name, enable); }
+            finally { Close(); }
+        }
+
+        private static PowerDevice SetWakeOpen(string name, bool enable)
         {
             uint rc = DevicePowerNative.DevicePowerSetDeviceState(name,
                 enable ? DevicePowerNative.DEVICEPOWER_SET_WAKEENABLED : DevicePowerNative.DEVICEPOWER_CLEAR_WAKEENABLED, IntPtr.Zero);
