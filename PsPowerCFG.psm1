@@ -67,6 +67,16 @@ function Initialize-PsPowerCfgNative {
             if (-not ('PsPowerCfg.PowerApi' -as [type])) {
                 Add-Type -Path $dllPath -ErrorAction Stop
             }
+
+            # Drop DLLs from older source versions for this edition/CLR. A file
+            # still loaded by another session is locked; skip it and retry on a
+            # later import.
+            $suffix = '.{0}{1}.{2}.dll' -f $edition, $clr.Major, $clr.Minor
+            foreach ($stale in [System.IO.Directory]::GetFiles($cacheDir, 'PsPowerCfg.Native.*' + $suffix)) {
+                if ($stale -ne $dllPath) {
+                    try { [System.IO.File]::Delete($stale) } catch { Write-Verbose "PsPowerCFG: stale cache in use: $stale" }
+                }
+            }
         }
         catch {
             Write-Verbose "PsPowerCFG: cached native load failed, compiling in memory: $($_.Exception.Message)"
