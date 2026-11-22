@@ -61,7 +61,7 @@ function Get-PowerSetting {
         $setGuid = if ($Setting) { [Nullable[guid]](Resolve-PowerGuid -Cmdlet $PSCmdlet -Value $Setting -Kind Setting) } else { $null }
 
         if ($null -ne $setGuid -and $null -eq $subGuid) {
-            $subGuid = [PsPowerCfg.PowerApi]::FindSubgroup($schemeGuid, $setGuid.Value)
+            $subGuid = [PsPowerCfg.PowerApi]::FindSubgroup($schemeGuid, [guid]$setGuid)
             if ($null -eq $subGuid) {
                 $exception = [System.Management.Automation.ItemNotFoundException]::new("Setting $Setting was not found in scheme $schemeGuid.")
                 $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(

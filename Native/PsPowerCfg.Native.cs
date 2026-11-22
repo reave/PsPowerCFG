@@ -605,15 +605,46 @@ namespace PsPowerCfg
             return r;
         }
 
+        // GUID_NO_SUBGROUP. PowerEnumerate never returns it as a subgroup, but
+        // settings live under it (powercfg /q lists them first as "Settings
+        // belonging to no subgroup"), so it is added explicitly.
+        public static readonly Guid NoSubgroup = new Guid("fea3413e-7e05-4911-9a71-700331f1c294");
+
+        // Subgroups of a scheme in powercfg order: SUB_NONE first, then what
+        // PowerEnumerate returns.
+        public static Guid[] EnumerateSubgroups(Guid scheme)
+        {
+            List<Guid> list = new List<Guid>();
+            list.Add(NoSubgroup);
+            foreach (Guid g in Enumerate(scheme, null, PowerDataAccessor.Subgroup))
+            {
+                if (g != NoSubgroup) { list.Add(g); }
+            }
+            return list.ToArray();
+        }
+
+        private static string SubgroupName(Guid subgroup)
+        {
+            try
+            {
+                return ReadFriendlyName(null, subgroup, null);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                if (subgroup == NoSubgroup) { return "Settings belonging to no subgroup"; }
+                throw;
+            }
+        }
+
         // subgroup/setting null = all. Hidden settings (ATTRIBUTE_HIDE) are
         // skipped unless includeHidden, matching powercfg /q vs /qh.
         public static PowerSetting[] GetSettings(Guid scheme, Guid? subgroup, Guid? setting, bool includeHidden)
         {
             List<PowerSetting> result = new List<PowerSetting>();
-            Guid[] subgroups = subgroup.HasValue ? new Guid[] { subgroup.Value } : Enumerate(scheme, null, PowerDataAccessor.Subgroup);
+            Guid[] subgroups = subgroup.HasValue ? new Guid[] { subgroup.Value } : EnumerateSubgroups(scheme);
             foreach (Guid sg in subgroups)
             {
-                string sgName = ReadFriendlyName(null, sg, null);
+                string sgName = SubgroupName(sg);
                 Guid[] settings = setting.HasValue ? new Guid[] { setting.Value } : Enumerate(scheme, sg, PowerDataAccessor.IndividualSetting);
                 foreach (Guid st in settings)
                 {
@@ -634,7 +665,7 @@ namespace PsPowerCfg
             EnsureAliases();
             Guid sg;
             if (s_settingSubgroup.TryGetValue(setting, out sg)) { return sg; }
-            foreach (Guid g in Enumerate(scheme, null, PowerDataAccessor.Subgroup))
+            foreach (Guid g in EnumerateSubgroups(scheme))
             {
                 foreach (Guid st in Enumerate(scheme, g, PowerDataAccessor.IndividualSetting))
                 {

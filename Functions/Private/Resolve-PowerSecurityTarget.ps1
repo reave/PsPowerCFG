@@ -6,8 +6,9 @@ function Resolve-PowerSecurityTarget {
     .NOTES
     ActionSetActive = ACCESS_ACTIVE_SCHEME (19), ActionCreate =
     ACCESS_CREATE_SCHEME (20), ActionDefault = ACCESS_DEFAULT_SECURITY_DESCRIPTOR
-    (14). A scheme GUID uses ACCESS_SCHEME (16); a setting GUID uses
-    ACCESS_INDIVIDUAL_SETTING (18).
+    (14). Any GUID, scheme or setting, uses ACCESS_SCHEME (16): verified on
+    Win11 26100 that 16 returns the SDDL powercfg /getsecuritydescriptor prints
+    for a setting, while 17 and 18 fail with ERROR_INVALID_PARAMETER.
     #>
     [CmdletBinding()]
     param(
@@ -29,7 +30,5 @@ function Resolve-PowerSecurityTarget {
     }
 
     $g = Resolve-PowerGuid -Cmdlet $Cmdlet -Value $Guid -Kind Scheme
-    $isScheme = @([PsPowerCfg.PowerApi]::EnumerateSchemes()) -contains $g
-    $accessor = if ($isScheme) { 16 } else { 18 }
-    [pscustomobject]@{ Accessor = [uint32]$accessor; Guid = [Nullable[guid]]$g; Label = "$g" }
+    [pscustomobject]@{ Accessor = [uint32]16; Guid = [Nullable[guid]]$g; Label = "$g" }
 }
