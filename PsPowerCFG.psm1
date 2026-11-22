@@ -36,9 +36,12 @@ function Initialize-PsPowerCfgNative {
         $field = $loaded.GetField('LoadedSourceHash')
         $loadedHash = if ($field) { $field.GetValue($null) } else { $null }
         if ($loadedHash -eq $hash) { return }
-        throw ("PsPowerCFG: this session already has a different build of the native layer loaded " +
-            "($(if ($loadedHash) { $loadedHash } else { 'pre-1.2' }), module needs $hash). " +
-            '.NET cannot unload it. Start a new PowerShell session and import the module again.')
+        $message = "PsPowerCFG: this session already has a different build of the native layer loaded " +
+        "($(if ($loadedHash) { $loadedHash } else { 'pre-1.2' }), module needs $hash). " +
+        '.NET cannot unload it. Start a new PowerShell session and import the module again.'
+        throw [System.Management.Automation.ErrorRecord]::new(
+            [System.InvalidOperationException]::new($message), 'NativeLayerMismatch',
+            [System.Management.Automation.ErrorCategory]::ResourceUnavailable, $loadedHash)
     }
 
     $dllPath = $null
@@ -100,6 +103,11 @@ function Initialize-PsPowerCfgNative {
 
 Initialize-PsPowerCfgNative
 Remove-Item -Path Function:\Initialize-PsPowerCfgNative
+
+# Type data is added here with -Force instead of TypesToProcess, so importing a
+# second copy of the module from another folder does not fail with
+# "The member ID is already present".
+Update-TypeData -TypeName PsPowerCfg.PowerScheme -MemberType AliasProperty -MemberName ID -Value Guid -Force
 
 # ---------------------------------------------------------------------------
 # Functions

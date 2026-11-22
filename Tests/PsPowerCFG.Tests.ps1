@@ -39,7 +39,9 @@ Describe 'Module' {
         $expected = @(
             'Get-PowerScheme', 'Get-ActivePowerScheme', 'Set-ActivePowerScheme', 'Copy-PowerScheme', 'Rename-PowerScheme',
             'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme', 'Restore-DefaultPowerScheme',
-            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB')
+            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB',
+            'Get-PowerSetting', 'Set-PowerSetting', 'Set-PowerTimeout', 'Remove-PowerSetting', 'Set-PowerSettingAttribute',
+            'Get-PowerAlias', 'Get-PowerSecurityDescriptor', 'Set-PowerSecurityDescriptor')
         $cmds | Should -Be ($expected | Sort-Object)
     }
 
@@ -214,6 +216,205 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
         $out | Should -BeNullOrEmpty
         Test-Path (Join-Path $script:tmp 'bk') | Should -BeFalse
         @((Get-PowerScheme).Guid | Sort-Object) | Should -Be $before
+    }
+}
+
+Describe 'Get-PowerAlias' {
+    It 'loads the alias table' {
+        @(Get-PowerAlias).Count | Should -BeGreaterThan 150
+    }
+    It 'classifies subgroups and settings' {
+        (Get-PowerAlias SUB_SLEEP).Kind | Should -Be 'Subgroup'
+        $s = Get-PowerAlias STANDBYIDLE
+        $s.Kind | Should -Be 'Setting'
+        $s.SubgroupGuid | Should -Be ([guid]'238c9fa8-0aad-41ed-83f4-97be242c8f20')
+    }
+    It 'matches every alias powercfg /aliases prints' {
+        $cli = powercfg.exe /aliases | ForEach-Object {
+            if ($_ -match '^\s*([0-9a-f-]{36})\s+(\S+)\s*$') { [pscustomobject]@{ Guid = [guid]$Matches[1]; Alias = $Matches[2] } }
+        }
+        $ours = @{}
+        Get-PowerAlias | ForEach-Object { $ours[$_.Alias] = $_.Guid }
+        foreach ($c in $cli) { $ours[$c.Alias] | Should -Be $c.Guid -Because $c.Alias }
+    }
+}
+
+Describe 'Get-PowerSetting' {
+    BeforeAll {
+        $script:active = [PsPowerCfg.PowerApi]::GetActiveScheme()
+        $script:all = @(Get-PowerSetting -IncludeHidden)
+
+        # powercfg /qh blocks: GUID line, then values; the last two 0x.. values
+        # in each setting block are AC and DC. Language-neutral.
+        $script:cli = @{}
+        $current = $null
+        foreach ($line in (powercfg.exe /qh $script:active)) {
+            $g = [regex]::Matches($line, '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+            if ($g.Count -and $line -match '^\s{4}\S') {
+                $current = [guid]$g[0].Value
+                $script:cli[$current] = [System.Collections.Generic.List[uint32]]::new()
+                continue
+            }
+            if ($g.Count) { $current = $null; continue }
+            if ($current -and $line -match '0x([0-9a-fA-F]{8})\s*$') {
+                $script:cli[$current].Add([Convert]::ToUInt32($Matches[1], 16))
+            }
+        }
+    }
+
+    It 'returns visible settings by default and more with -IncludeHidden' {
+        $visible = @(Get-PowerSetting)
+        $visible.Count | Should -BeGreaterThan 5
+        $visible | ForEach-Object { $_.IsHidden | Should -BeFalse }
+        $script:all.Count | Should -BeGreaterOrEqual $visible.Count
+    }
+
+    It 'covers the same settings as powercfg /qh' {
+        @($script:all.Guid | Sort-Object -Unique) | Should -Be @($script:cli.Keys | Sort-Object)
+    }
+
+    It 'reports the same AC/DC values as powercfg /qh' {
+        foreach ($s in $script:all) {
+            $vals = $script:cli[$s.Guid]
+            if ($vals.Count -lt 2) { continue }
+            $s.AcValue | Should -Be $vals[$vals.Count - 2] -Because "$($s.Name) AC"
+            $s.DcValue | Should -Be $vals[$vals.Count - 1] -Because "$($s.Name) DC"
+        }
+    }
+
+    It 'finds the subgroup from a setting alias' {
+        $s = Get-PowerSetting -Setting STANDBYIDLE
+        $s.SubgroupAlias | Should -Be 'SUB_SLEEP'
+        $s.IsRange | Should -BeTrue
+        $s.Units | Should -Not -BeNullOrEmpty
+    }
+
+    It 'describes index settings with possible values' {
+        $s = Get-PowerSetting -Subgroup SUB_BUTTONS -Setting PBUTTONACTION
+        $s.IsRange | Should -BeFalse
+        $s.PossibleValues.Count | Should -BeGreaterThan 1
+        $s.AcValueName | Should -Not -BeNullOrEmpty
+    }
+
+    It 'accepts scheme aliases, names and pipeline input' {
+        (Get-PowerSetting -Scheme SCHEME_BALANCED -Setting STANDBYIDLE).SchemeGuid | Should -Be ([guid]'381b4222-f694-41f0-9685-ff5bb260df2e')
+        $p = Get-PowerScheme | Select-Object -First 1
+        (Get-PowerSetting -Scheme $p.Name -Setting VIDEOIDLE).SchemeGuid | Should -Be $p.Guid
+        ($p | Get-PowerSetting -Setting VIDEOIDLE).SchemeGuid | Should -Be $p.Guid
+    }
+
+    It 'filters by -Name on name or alias' {
+        (Get-PowerSetting -Name 'VIDEOIDLE').Alias | Should -Be 'VIDEOIDLE'
+    }
+
+    It 'throws UnknownSetting for garbage' {
+        { Get-PowerSetting -Setting 'NOT_A_SETTING' } | Should -Throw -ErrorId 'UnknownSetting,Get-PowerSetting'
+    }
+
+    It 'is fast (full /qh equivalent)' {
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        $null = Get-PowerSetting -IncludeHidden
+        $sw.Stop()
+        $cliSw = [Diagnostics.Stopwatch]::StartNew()
+        $null = powercfg.exe /qh
+        $cliSw.Stop()
+        Write-Host ("    Get-PowerSetting -IncludeHidden: {0} ms ({1} settings); powercfg /qh: {2} ms" -f $sw.ElapsedMilliseconds, $script:all.Count, $cliSw.ElapsedMilliseconds)
+        $sw.ElapsedMilliseconds | Should -BeLessThan 5000
+    }
+}
+
+Describe 'Get-PowerSecurityDescriptor' {
+    It 'matches powercfg /getsecuritydescriptor for <_>' -ForEach @('ActionSetActive', 'ActionCreate', 'ActionDefault') {
+        $cli = (powercfg.exe /getsecuritydescriptor $_ | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
+        (Get-PowerSecurityDescriptor -Action $_).Sddl | Should -Be $cli
+    }
+    It 'matches powercfg for the active scheme' {
+        $g = [PsPowerCfg.PowerApi]::GetActiveScheme()
+        $cli = (powercfg.exe /getsecuritydescriptor $g | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
+        (Get-PowerSecurityDescriptor -Guid $g).Sddl | Should -Be $cli
+    }
+    # CONSOLELOCK ships with its own descriptor under
+    # HKLM\SYSTEM\CurrentControlSet\Control\Power\SecurityDescriptors, unlike
+    # most settings, which fall back to the Default one. Matching it shows we
+    # read the setting's descriptor rather than echoing the scheme's.
+    It 'matches powercfg for a setting with its own descriptor (CONSOLELOCK)' {
+        $cli = (powercfg.exe /getsecuritydescriptor 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
+        (Get-PowerSecurityDescriptor -Guid CONSOLELOCK).Sddl | Should -Be $cli
+    }
+}
+
+Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
+    BeforeAll {
+        $script:originalActive = [PsPowerCfg.PowerApi]::GetActiveScheme()
+        $script:copy = Copy-PowerScheme -Guid $script:originalActive -NewName 'PsPowerCFG settings test'
+    }
+    AfterAll {
+        [PsPowerCfg.PowerApi]::SetActiveScheme($script:originalActive)
+        Get-PowerScheme | Where-Object { $_.Name -like 'PsPowerCFG*' -and $_.Guid -ne $script:originalActive } |
+            ForEach-Object { try { [PsPowerCfg.PowerApi]::DeleteScheme($_.Guid) } catch { Write-Warning $_.Exception.Message } }
+    }
+
+    It 'Set-PowerSetting writes AC and DC values (verified with powercfg)' {
+        $r = Set-PowerSetting -Scheme $script:copy.Guid -Setting STANDBYIDLE -AcValue 1234 -DcValue 600 -PassThru
+        $r.AcValue | Should -Be 1234
+        $r.DcValue | Should -Be 600
+        $q = powercfg.exe /q $script:copy.Guid SUB_SLEEP STANDBYIDLE | Out-String
+        $q | Should -Match '0x000004d2'
+        $q | Should -Match '0x00000258'
+    }
+
+    It 'Set-PowerSetting rejects out-of-range values unless -Force' {
+        $s = Get-PowerSetting -Scheme $script:copy.Guid -Subgroup SUB_BUTTONS -Setting PBUTTONACTION
+        { Set-PowerSetting -Scheme $script:copy.Guid -Setting PBUTTONACTION -AcValue 999 } | Should -Throw -ErrorId 'PowerSettingValueOutOfRange,Set-PowerSetting'
+        (Get-PowerSetting -Scheme $script:copy.Guid -Subgroup SUB_BUTTONS -Setting PBUTTONACTION).AcValue | Should -Be $s.AcValue
+    }
+
+    It 'Set-PowerSetting -WhatIf writes nothing' {
+        Set-PowerSetting -Scheme $script:copy.Guid -Setting STANDBYIDLE -AcValue 42 -WhatIf
+        (Get-PowerSetting -Scheme $script:copy.Guid -Setting STANDBYIDLE).AcValue | Should -Be 1234
+    }
+
+    It 'Set-PowerTimeout converts minutes to seconds' {
+        $r = Set-PowerTimeout -Scheme $script:copy.Guid -Type Monitor -AcMinutes 7 -DcMinutes 3 -PassThru
+        $r.AcValue | Should -Be 420
+        $r.DcValue | Should -Be 180
+    }
+
+    It 'Set-PowerSetting on the active scheme applies immediately' {
+        Set-ActivePowerScheme -Guid $script:copy.Guid
+        Set-PowerTimeout -Type Disk -AcMinutes 11
+        (powercfg.exe /q SCHEME_CURRENT SUB_DISK DISKIDLE | Out-String) | Should -Match '0x00000294'
+        Set-ActivePowerScheme -Guid $script:originalActive
+    }
+
+    It 'Set-PowerSettingAttribute toggles ATTRIBUTE_HIDE and restores it' -Skip:(-not $isAdmin) {
+        $target = Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden
+        $was = $target.IsHidden
+        try {
+            Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden (-not $was)
+            (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be (-not $was)
+        }
+        finally {
+            Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $was
+        }
+        (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be $was
+    }
+
+    It 'Remove-PowerSetting refuses built-in settings without -Force' -Skip:(-not $isAdmin) {
+        Remove-PowerSetting -Subgroup SUB_SLEEP -Setting STANDBYIDLE -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSettingIsBuiltIn*'
+        (Get-PowerSetting -Setting STANDBYIDLE) | Should -Not -BeNullOrEmpty
+    }
+
+    It 'Set-PowerSecurityDescriptor rejects invalid SDDL and honors -WhatIf' -Skip:(-not $isAdmin) {
+        $before = (Get-PowerSecurityDescriptor -Action ActionSetActive).Sddl
+        Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'not sddl' -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'InvalidSddl*'
+        Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'O:BAG:SYD:P(A;CI;KA;;;BA)' -WhatIf
+        (Get-PowerSecurityDescriptor -Action ActionSetActive).Sddl | Should -Be $before
     }
 }
 

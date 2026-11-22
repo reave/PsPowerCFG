@@ -1,6 +1,6 @@
 @{
     RootModule           = 'PsPowerCFG.psm1'
-    ModuleVersion        = '1.2.0'
+    ModuleVersion        = '1.3.0'
     GUID                 = '4c864518-13d1-4a7e-a7e3-7c6080b2e6e8'
     Author               = 'reave'
     Copyright            = '(c) reave. All rights reserved.'
@@ -9,7 +9,6 @@
     PowerShellVersion    = '5.1'
     CompatiblePSEditions = @('Desktop', 'Core')
 
-    TypesToProcess       = @('PsPowerCFG.types.ps1xml')
     FormatsToProcess     = @('PsPowerCFG.format.ps1xml')
 
     # Explicit lists (no wildcards) so command discovery and autoload do not
@@ -24,6 +23,14 @@
         'Import-PowerScheme'
         'Export-PowerScheme'
         'Restore-DefaultPowerScheme'
+        'Get-PowerSetting'
+        'Set-PowerSetting'
+        'Set-PowerTimeout'
+        'Remove-PowerSetting'
+        'Set-PowerSettingAttribute'
+        'Get-PowerAlias'
+        'Get-PowerSecurityDescriptor'
+        'Set-PowerSecurityDescriptor'
         'Export-SystemPowerReport'
         'Export-SystemSleepDiagnostics'
         'Export-SRUMDB'

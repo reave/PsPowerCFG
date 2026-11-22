@@ -23,5 +23,57 @@
         </TableRowEntries>
       </TableControl>
     </View>
+    <View>
+      <Name>PsPowerCfg.PowerSetting</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerSetting</TypeName>
+      </ViewSelectedBy>
+      <GroupBy>
+        <ScriptBlock>if ($_.SubgroupAlias) { '{0} ({1})' -f $_.SubgroupName, $_.SubgroupAlias } else { $_.SubgroupName }</ScriptBlock>
+        <Label>Subgroup</Label>
+      </GroupBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>Name</Label><Width>40</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Alias</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>AC</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>DC</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Policy</Label><Width>6</Width></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>Name</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>Alias</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.IsRange) { "$($_.AcValue) $($_.Units)".Trim() } elseif ($_.AcValueName) { "$($_.AcValue): $($_.AcValueName)" } else { $_.AcValue }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.IsRange) { "$($_.DcValue) $($_.Units)".Trim() } elseif ($_.DcValueName) { "$($_.DcValue): $($_.DcValueName)" } else { $_.DcValue }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.AcPolicyManaged -or $_.DcPolicyManaged) { 'GPO' }</ScriptBlock></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
+      <Name>PsPowerCfg.PowerAlias</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerAlias</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>Alias</Label><Width>44</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Kind</Label><Width>14</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Guid</Label><Width>36</Width></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>Alias</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>Kind</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>Guid</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
   </ViewDefinitions>
 </Configuration>
