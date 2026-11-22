@@ -7,6 +7,8 @@ BeforeDiscovery {
     # -Skip is evaluated during discovery, before any BeforeAll runs, so the
     # elevation check has to happen here.
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    # Tests that create/activate/delete schemes only run when opted in.
+    $runMutating = $env:PSPOWERCFG_MUTATING -eq '1'
 }
 
 BeforeAll {
@@ -104,7 +106,7 @@ Describe 'Get-ActivePowerScheme' {
     }
 }
 
-Describe 'Scheme management' -Tag 'Mutating' {
+Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     BeforeAll {
         $script:originalActive = [PsPowerCfg.PowerApi]::GetActiveScheme()
         $script:created = [System.Collections.Generic.List[guid]]::new()
@@ -114,8 +116,15 @@ Describe 'Scheme management' -Tag 'Mutating' {
     }
     AfterAll {
         [PsPowerCfg.PowerApi]::SetActiveScheme($script:originalActive)
-        foreach ($g in $script:created) {
-            try { [PsPowerCfg.PowerApi]::DeleteScheme($g) } catch { Write-Warning "cleanup: $($_.Exception.Message)" }
+        $builtIn = @(
+            [guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
+            [guid]'a1841308-3541-4fab-bc81-f71556f20b4a', [guid]'e9a42b02-d5df-448d-aa00-03f14749eb61')
+        # Only ever delete schemes this suite named; never a built-in GUID.
+        $leftovers = [PsPowerCfg.PowerApi]::GetSchemes() | Where-Object {
+            $_.Name -like 'PsPowerCFG*' -and $builtIn -notcontains $_.Guid -and $_.Guid -ne $script:originalActive
+        }
+        foreach ($s in $leftovers) {
+            try { [PsPowerCfg.PowerApi]::DeleteScheme($s.Guid) } catch { Write-Warning "cleanup $($s.Name): $($_.Exception.Message)" }
         }
         Remove-Item -LiteralPath $script:tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -131,10 +140,10 @@ Describe 'Scheme management' -Tag 'Mutating' {
 
     It 'Copy-PowerScheme honors -DestinationGuid' {
         $dest = [guid]::NewGuid()
-        $copy = Copy-PowerScheme -Guid $script:source.Guid -DestinationGuid $dest
+        $copy = Copy-PowerScheme -Guid $script:source.Guid -DestinationGuid $dest -NewName 'PsPowerCFG test dest'
         $script:created.Add($copy.Guid)
         $copy.Guid | Should -Be $dest
-        $copy.Name | Should -Be $script:source.Name
+        $copy.Name | Should -Be 'PsPowerCFG test dest'
     }
 
     It 'Rename-PowerScheme changes the name' {
@@ -176,6 +185,7 @@ Describe 'Scheme management' -Tag 'Mutating' {
 
     It 'Remove-PowerScheme deletes from the pipeline' {
         $victim = Copy-PowerScheme -Guid $script:source.Guid -NewName 'PsPowerCFG delete me'
+        $script:created.Add($victim.Guid)
         $victim | Remove-PowerScheme -Confirm:$false
         (Get-PowerScheme).Guid | Should -Not -Contain $victim.Guid
     }

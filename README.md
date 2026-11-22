@@ -42,4 +42,4 @@ powershell.exe -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 pwsh.exe       -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 ```
 
-Report and import tests only run when elevated. Tests tagged `Mutating` create, activate and delete temporary schemes (they restore the original active scheme and remove what they created); skip them with `-ExcludeTag Mutating`.
+Report and import tests only run when elevated. Tests tagged `Mutating` create, activate and delete temporary `PsPowerCFG*` schemes. They are skipped unless you opt in with `$env:PSPOWERCFG_MUTATING = '1'`. They restore the original active scheme and delete only schemes whose name starts with `PsPowerCFG` (never a built-in GUID).
