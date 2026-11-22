@@ -41,14 +41,12 @@ function Remove-PowerSetting {
                     $exception, 'PowerSettingIsBuiltIn', [System.Management.Automation.ErrorCategory]::InvalidOperation, $setGuid))
             return
         }
-        $label = "$setGuid"
-        try { $label = '{0} ({1})' -f [PsPowerCfg.PowerApi]::ReadFriendlyName($null, $subGuid, $setGuid), $setGuid } catch { Write-Verbose $_.Exception.Message }
+        $friendly = [PsPowerCfg.Safe]::ReadFriendlyName($null, $subGuid, $setGuid)
+        $label = if ($friendly) { '{0} ({1})' -f $friendly, $setGuid } else { "$setGuid" }
         if (-not $PSCmdlet.ShouldProcess($label, 'Remove power setting from all schemes')) { return }
-        try {
-            [PsPowerCfg.PowerApi]::RemoveSetting($subGuid, $setGuid)
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RemovePowerSettingFailed' -TargetObject $setGuid))
+        $r = [PsPowerCfg.Safe]::RemoveSetting($subGuid, $setGuid)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RemovePowerSettingFailed' -TargetObject $setGuid))
         }
     }
 }

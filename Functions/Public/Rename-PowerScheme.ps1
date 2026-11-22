@@ -33,13 +33,12 @@ function Rename-PowerScheme {
 
     process {
         if (-not $PSCmdlet.ShouldProcess("$Guid", "Rename power scheme to '$NewName'")) { return }
-        try {
-            [PsPowerCfg.PowerApi]::WriteFriendlyName($Guid, $null, $null, $NewName)
-            if ($PSBoundParameters.ContainsKey('Description')) { [PsPowerCfg.PowerApi]::WriteDescription($Guid, $null, $null, $Description) }
-            if ($PassThru) { [PsPowerCfg.PowerApi]::GetScheme($Guid) }
+        $desc = if ($PSBoundParameters.ContainsKey('Description')) { [string]$Description } else { $null }
+        $r = [PsPowerCfg.Safe]::RenameScheme($Guid, $NewName, $desc)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RenamePowerSchemeFailed' -TargetObject $Guid))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RenamePowerSchemeFailed' -TargetObject $Guid))
-        }
+        if ($PassThru) { $r.Value }
     }
 }

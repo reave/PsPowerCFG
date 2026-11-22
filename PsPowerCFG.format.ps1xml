@@ -75,5 +75,84 @@
         </TableRowEntries>
       </TableControl>
     </View>
+    <View>
+      <Name>PsPowerCfg.PowerDevice</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerDevice</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>Armed</Label><Width>6</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Programmable</Label><Width>13</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Name</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><ScriptBlock>if ($_.WakeArmed) { "Yes" }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.WakeProgrammable) { "Yes" }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Name</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
+      <Name>PsPowerCfg.PowerWakeEvent</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerWakeEvent</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>WakeTime</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>SleepTime</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Source</Label><Width>7</Width></TableColumnHeader>
+          <TableColumnHeader><Label>WakeSourceText</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>WakeTime</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>SleepTime</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>WakeSourceType</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>WakeSourceText</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
+      <Name>PsPowerCfg.PowerCapabilities</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerCapabilities</TypeName>
+      </ViewSelectedBy>
+      <ListControl>
+        <ListEntries>
+          <ListEntry>
+            <ListItems>
+              <ListItem><PropertyName>StandbyS1</PropertyName></ListItem>
+              <ListItem><PropertyName>StandbyS2</PropertyName></ListItem>
+              <ListItem><PropertyName>StandbyS3</PropertyName></ListItem>
+              <ListItem><PropertyName>StandbyS0LowPowerIdle</PropertyName></ListItem>
+              <ListItem><PropertyName>S0NetworkConnected</PropertyName></ListItem>
+              <ListItem><PropertyName>HibernateSupported</PropertyName></ListItem>
+              <ListItem><PropertyName>HybridSleep</PropertyName></ListItem>
+              <ListItem><PropertyName>FastStartup</PropertyName></ListItem>
+              <ListItem><PropertyName>HiberFilePresent</PropertyName></ListItem>
+              <ListItem><PropertyName>HiberFileType</PropertyName></ListItem>
+              <ListItem><PropertyName>SoftOffS5</PropertyName></ListItem>
+              <ListItem><PropertyName>LidPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>PowerButtonPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>SleepButtonPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>SystemBatteriesPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>UpsPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>WakeAlarmPresent</PropertyName></ListItem>
+              <ListItem><PropertyName>RtcWake</PropertyName></ListItem>
+              <ListItem><PropertyName>MinDeviceWakeState</PropertyName></ListItem>
+            </ListItems>
+          </ListEntry>
+        </ListEntries>
+      </ListControl>
+    </View>
   </ViewDefinitions>
 </Configuration>

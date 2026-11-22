@@ -25,11 +25,23 @@ Scheme and setting operations call `powrprof.dll` directly through a small C# P/
 | `Get-PowerAlias` | `/aliases`, `/aliasesh` | built-in table |
 | `Get-PowerSecurityDescriptor` | `/getsecuritydescriptor` | powrprof.dll |
 | `Set-PowerSecurityDescriptor` | `/setsecuritydescriptor` | powrprof.dll (admin) |
-
-Every `-Scheme`, `-Subgroup` and `-Setting` parameter accepts a GUID or a powercfg alias (`SCHEME_CURRENT`, `SUB_SLEEP`, `STANDBYIDLE`, ...); `-Scheme` also accepts a scheme name. `-Subgroup` can usually be omitted: it is looked up from the setting.
 | `Export-SystemPowerReport` | `/systempowerreport`, `/sleepstudy` | powercfg.exe (admin) |
 | `Export-SystemSleepDiagnostics` | `/systemsleepdiagnostics` | powercfg.exe (admin) |
 | `Export-SRUMDB` | `/srumutil` | powercfg.exe (admin) |
+| `Get-PowerCapability` | `/availablesleepstates` | CallNtPowerInformation (no "why unavailable" reasons: undocumented) |
+| `Get-PowerDevice` | `/devicequery` | powrprof.dll |
+| `Enable-PowerDeviceWake` | `/deviceenableawake` | powrprof.dll (admin) |
+| `Disable-PowerDeviceWake` | `/devicedisablewake` | powrprof.dll (admin) |
+| `Get-PowerLastWake` | `/lastwake` | System event log via wevtapi.dll (powercfg's wake-history API is undocumented) |
+| `Get-PowerHibernate` | `/hibernate` (status) | CallNtPowerInformation + registry |
+| `Set-PowerHibernate` | `/hibernate on\|off`, `/size`, `/type` | powercfg.exe (admin; see below) |
+| `Get-PowerBatteryState` | none | CallNtPowerInformation |
+
+Every `-Scheme`, `-Subgroup` and `-Setting` parameter accepts a GUID or a powercfg alias (`SCHEME_CURRENT`, `SUB_SLEEP`, `STANDBYIDLE`, ...); `-Scheme` also accepts a scheme name. `-Subgroup` can usually be omitted: it is looked up from the setting.
+
+`Set-PowerHibernate` wraps powercfg on purpose. The only public API, `CallNtPowerInformation(SystemReserveHiberFile)`, just creates or deletes `hiberfil.sys`. powercfg also maintains `HibernateEnabled`, the hiberfile size and type, and fast startup, and those registry values are documented only through powercfg. The function checks the result with `Get-PowerHibernate` rather than trusting powercfg's exit code.
+
+Errors from the native layer are written once. A .NET exception raised in PowerShell code lands in the caller's `-ErrorVariable` even when the function catches it, so functions call the non-throwing `[PsPowerCfg.Safe]` layer and write a single ErrorRecord.
 
 ## Native layer and the compile cache
 
@@ -52,4 +64,4 @@ powershell.exe -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 pwsh.exe       -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
 ```
 
-Report and import tests only run when elevated. Tests tagged `Mutating` create, activate and delete temporary `PsPowerCFG*` schemes. They are skipped unless you opt in with `$env:PSPOWERCFG_MUTATING = '1'`. They restore the original active scheme and delete only schemes whose name starts with `PsPowerCFG` (never a built-in GUID).
+Report and import tests only run when elevated. Tests tagged `Mutating` create, activate and delete temporary `PsPowerCFG*` schemes, and (elevated only) disarm and re-arm one wake-armed device. They are skipped unless you opt in with `$env:PSPOWERCFG_MUTATING = '1'`. They restore the original active scheme and delete only schemes whose name starts with `PsPowerCFG` (never a built-in GUID).

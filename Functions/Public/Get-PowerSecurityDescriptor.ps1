@@ -28,15 +28,15 @@ function Get-PowerSecurityDescriptor {
 
     process {
         $t = Resolve-PowerSecurityTarget -Cmdlet $PSCmdlet -Guid $Guid -Action $Action
-        try {
-            [pscustomobject]@{
-                PSTypeName = 'PsPowerCfg.PowerSecurityDescriptor'
-                Target     = $t.Label
-                Sddl       = [PsPowerCfg.PowerApi]::ReadSecurityDescriptor($t.Accessor, $t.Guid)
-            }
+        $r = [PsPowerCfg.Safe]::ReadSecurityDescriptor($t.Accessor, $t.Guid)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'GetPowerSecurityDescriptorFailed' -TargetObject $t.Label))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'GetPowerSecurityDescriptorFailed' -TargetObject $t.Label))
+        [pscustomobject]@{
+            PSTypeName = 'PsPowerCfg.PowerSecurityDescriptor'
+            Target     = $t.Label
+            Sddl       = [string]$r.Value
         }
     }
 }

@@ -42,14 +42,12 @@ function Remove-PowerScheme {
                 continue
             }
 
-            $label = $g.ToString()
-            try { $label = '{0} ({1})' -f [PsPowerCfg.PowerApi]::ReadFriendlyName($g, $null, $null), $g } catch { Write-Verbose $_.Exception.Message }
+            $friendly = [PsPowerCfg.Safe]::ReadFriendlyName($g, $null, $null)
+            $label = if ($friendly) { '{0} ({1})' -f $friendly, $g } else { $g.ToString() }
             if (-not $PSCmdlet.ShouldProcess($label, 'Delete power scheme')) { continue }
-            try {
-                [PsPowerCfg.PowerApi]::DeleteScheme($g)
-            }
-            catch {
-                $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RemovePowerSchemeFailed' -TargetObject $g))
+            $r = [PsPowerCfg.Safe]::DeleteScheme($g)
+            if ($r.Failed) {
+                $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RemovePowerSchemeFailed' -TargetObject $g))
             }
         }
     }

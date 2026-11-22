@@ -41,14 +41,13 @@ function Import-PowerScheme {
             return
         }
         if (-not $PSCmdlet.ShouldProcess($full, 'Import power scheme')) { return }
-        try {
-            $destination = if ($PSBoundParameters.ContainsKey('DestinationGuid')) { [Nullable[guid]]$DestinationGuid } else { $null }
-            $new = [PsPowerCfg.PowerApi]::ImportScheme($full, $destination)
-            if ($NewName) { [PsPowerCfg.PowerApi]::WriteFriendlyName($new, $null, $null, $NewName) }
-            [PsPowerCfg.PowerApi]::GetScheme($new)
+        $destination = if ($PSBoundParameters.ContainsKey('DestinationGuid')) { [Nullable[guid]]$DestinationGuid } else { $null }
+        $name = if ($NewName) { $NewName } else { $null }
+        $r = [PsPowerCfg.Safe]::ImportScheme($full, $destination, $name)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'ImportPowerSchemeFailed' -TargetObject $full))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'ImportPowerSchemeFailed' -TargetObject $full))
-        }
+        $r.Value
     }
 }

@@ -77,13 +77,12 @@ function Set-PowerSetting {
         }
         $subGuid = [guid]$subGuid
 
-        try {
-            $current = [PsPowerCfg.PowerApi]::GetSetting($schemeGuid, $subGuid, $setGuid, $null)
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'PowerSettingNotFound' -TargetObject $Setting))
+        $r = [PsPowerCfg.Safe]::GetSetting($schemeGuid, $subGuid, $setGuid)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'PowerSettingNotFound' -TargetObject $Setting))
             return
         }
+        $current = $r.Value
 
         if (-not $Force) {
             foreach ($pair in @(@{ On = $setAc; Value = $AcValue; Label = 'AcValue' }, @{ On = $setDc; Value = $DcValue; Label = 'DcValue' })) {
@@ -115,16 +114,13 @@ function Set-PowerSetting {
         if ($setDc) { $what += "DC=$DcValue" }
         if (-not $PSCmdlet.ShouldProcess("$($current.Name) ($setGuid) in scheme $schemeGuid", "Set $($what -join ', ')")) { return }
 
-        try {
-            if ($setAc) { [PsPowerCfg.PowerApi]::WriteAcValue($schemeGuid, $subGuid, $setGuid, $AcValue) }
-            if ($setDc) { [PsPowerCfg.PowerApi]::WriteDcValue($schemeGuid, $subGuid, $setGuid, $DcValue) }
-            if ($schemeGuid -eq [PsPowerCfg.PowerApi]::GetActiveScheme()) {
-                [PsPowerCfg.PowerApi]::SetActiveScheme($schemeGuid)
-            }
-            if ($PassThru) { [PsPowerCfg.PowerApi]::GetSetting($schemeGuid, $subGuid, $setGuid, $null) }
+        $acv = if ($setAc) { [uint32]$AcValue } else { [uint32]0 }
+        $dcv = if ($setDc) { [uint32]$DcValue } else { [uint32]0 }
+        $r = [PsPowerCfg.Safe]::WriteSettingValues($schemeGuid, $subGuid, $setGuid, $setAc, $acv, $setDc, $dcv)
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'SetPowerSettingFailed' -TargetObject $Setting))
+            return
         }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'SetPowerSettingFailed' -TargetObject $Setting))
-        }
+        if ($PassThru) { $r.Value }
     }
 }

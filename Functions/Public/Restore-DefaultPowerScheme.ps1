@@ -64,11 +64,9 @@ function Restore-DefaultPowerScheme {
                 Write-Warning "$Guid is not a built-in Windows scheme; Windows may reject the restore."
             }
             if (-not $PSCmdlet.ShouldProcess("$Guid", 'Reset power scheme to Windows defaults')) { return }
-            try {
-                [PsPowerCfg.PowerApi]::RestoreDefaultScheme($Guid)
-            }
-            catch {
-                $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RestoreDefaultPowerSchemeFailed' -TargetObject $Guid))
+            $r = [PsPowerCfg.Safe]::RestoreDefaultScheme($Guid)
+            if ($r.Failed) {
+                $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RestoreDefaultPowerSchemeFailed' -TargetObject $Guid))
             }
             return
         }
@@ -101,11 +99,9 @@ function Restore-DefaultPowerScheme {
             Write-Verbose "Backed up $($custom.Count) custom scheme(s) to $dir"
         }
 
-        try {
-            [PsPowerCfg.PowerApi]::RestoreDefaultSchemes()
-        }
-        catch {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -ErrorRecord $_ -ErrorId 'RestoreDefaultPowerSchemeFailed' -TargetObject 'all'))
+        $r = [PsPowerCfg.Safe]::RestoreDefaultSchemes()
+        if ($r.Failed) {
+            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RestoreDefaultPowerSchemeFailed' -TargetObject 'all'))
         }
     }
 }
