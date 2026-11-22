@@ -17,6 +17,16 @@ Scheme and setting operations call `powrprof.dll` directly through a small C# P/
 | `Import-PowerScheme` | `/import` | powrprof.dll (admin) |
 | `Export-PowerScheme` | `/export` | powercfg.exe (no public export API for .pow) |
 | `Restore-DefaultPowerScheme` | `/restoredefaultschemes` | powrprof.dll |
+| `Get-PowerSetting` | `/query`, `/qh` | powrprof.dll |
+| `Set-PowerSetting` | `/setacvalueindex`, `/setdcvalueindex` | powrprof.dll |
+| `Set-PowerTimeout` | `/change` | powrprof.dll |
+| `Remove-PowerSetting` | `/deletesetting` | powrprof.dll (admin) |
+| `Set-PowerSettingAttribute` | `/attributes` | powrprof.dll (admin) |
+| `Get-PowerAlias` | `/aliases`, `/aliasesh` | built-in table |
+| `Get-PowerSecurityDescriptor` | `/getsecuritydescriptor` | powrprof.dll |
+| `Set-PowerSecurityDescriptor` | `/setsecuritydescriptor` | powrprof.dll (admin) |
+
+Every `-Scheme`, `-Subgroup` and `-Setting` parameter accepts a GUID or a powercfg alias (`SCHEME_CURRENT`, `SUB_SLEEP`, `STANDBYIDLE`, ...); `-Scheme` also accepts a scheme name. `-Subgroup` can usually be omitted: it is looked up from the setting.
 | `Export-SystemPowerReport` | `/systempowerreport`, `/sleepstudy` | powercfg.exe (admin) |
 | `Export-SystemSleepDiagnostics` | `/systemsleepdiagnostics` | powercfg.exe (admin) |
 | `Export-SRUMDB` | `/srumutil` | powercfg.exe (admin) |
