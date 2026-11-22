@@ -335,10 +335,14 @@ Describe 'Get-PowerSecurityDescriptor' {
         if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
         (Get-PowerSecurityDescriptor -Guid $g).Sddl | Should -Be $cli
     }
-    It 'matches powercfg for a setting (STANDBYIDLE)' {
-        $cli = (powercfg.exe /getsecuritydescriptor 29f6c1db-86da-48c5-9fdb-f2b67b1f44da | Out-String).Trim()
+    # CONSOLELOCK ships with its own descriptor under
+    # HKLM\SYSTEM\CurrentControlSet\Control\Power\SecurityDescriptors, unlike
+    # most settings, which fall back to the Default one. Matching it shows we
+    # read the setting's descriptor rather than echoing the scheme's.
+    It 'matches powercfg for a setting with its own descriptor (CONSOLELOCK)' {
+        $cli = (powercfg.exe /getsecuritydescriptor 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 | Out-String).Trim()
         if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
-        (Get-PowerSecurityDescriptor -Guid STANDBYIDLE).Sddl | Should -Be $cli
+        (Get-PowerSecurityDescriptor -Guid CONSOLELOCK).Sddl | Should -Be $cli
     }
 }
 

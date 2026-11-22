@@ -563,7 +563,7 @@ namespace PsPowerCfg
             PowerSetting r = new PowerSetting();
             r.SchemeGuid = scheme;
             r.SubgroupGuid = subgroup;
-            r.SubgroupName = subgroupName != null ? subgroupName : ReadFriendlyName(null, subgroup, null);
+            r.SubgroupName = subgroupName != null ? subgroupName : SubgroupName(subgroup);
             r.SubgroupAlias = GetAliasName(subgroup);
             r.Guid = setting;
             r.Name = ReadFriendlyName(null, subgroup, setting);
@@ -625,15 +625,19 @@ namespace PsPowerCfg
 
         private static string SubgroupName(Guid subgroup)
         {
+            // SUB_NONE has no friendly name; use powercfg's label so the
+            // grouped format view gets a header.
+            string name = null;
             try
             {
-                return ReadFriendlyName(null, subgroup, null);
+                name = ReadFriendlyName(null, subgroup, null);
             }
             catch (System.ComponentModel.Win32Exception)
             {
-                if (subgroup == NoSubgroup) { return "Settings belonging to no subgroup"; }
-                throw;
+                if (subgroup != NoSubgroup) { throw; }
             }
+            if (string.IsNullOrEmpty(name) && subgroup == NoSubgroup) { return "Settings belonging to no subgroup"; }
+            return name;
         }
 
         // subgroup/setting null = all. Hidden settings (ATTRIBUTE_HIDE) are
