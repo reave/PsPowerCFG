@@ -18,22 +18,48 @@ function Export-BatteryReport {
     Write the report as XML instead of HTML.
     .PARAMETER Duration
     Number of days of history to analyze.
+    .PARAMETER ReformatXML
+    Convert an existing XML report (-FilePath) to HTML.
+    .PARAMETER FilePath
+    Path to an XML report produced with -FormatXML.
     .EXAMPLE
     Export-BatteryReport -OutFile C:\Temp\battery.html -Duration 14
     .OUTPUTS
     System.IO.FileInfo
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'OutputReport')]
     [OutputType([System.IO.FileInfo])]
     param(
-        [Parameter(Position = 0)]
+        [Parameter(ParameterSetName = 'OutputReport', Position = 0)]
+        [Parameter(ParameterSetName = 'TransformXML')]
         [string]$OutFile,
 
+        [Parameter(ParameterSetName = 'OutputReport')]
         [switch]$FormatXML,
 
+        [Parameter(ParameterSetName = 'OutputReport')]
         [ValidateRange(1, 3650)]
-        [int]$Duration
+        [int]$Duration,
+
+        [Parameter(ParameterSetName = 'TransformXML', Mandatory = $true)]
+        [switch]$ReformatXML,
+
+        [Parameter(ParameterSetName = 'TransformXML', Mandatory = $true)]
+        [string]$FilePath
     )
 
-    Invoke-PowerCfgReport -Cmdlet $PSCmdlet -Option 'batteryreport' -DefaultName 'battery-report' -OutFile $OutFile -Xml:$FormatXML -Duration $Duration
+    $report = @{
+        Cmdlet      = $PSCmdlet
+        Option      = 'batteryreport'
+        DefaultName = 'battery-report'
+        OutFile     = $OutFile
+    }
+    if ($PSCmdlet.ParameterSetName -eq 'TransformXML') {
+        $report.TransformXml = $FilePath
+    }
+    else {
+        $report.Xml = $FormatXML
+        $report.Duration = $Duration
+    }
+    Invoke-PowerCfgReport @report
 }

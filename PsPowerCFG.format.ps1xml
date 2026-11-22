@@ -154,5 +154,73 @@
         </ListEntries>
       </ListControl>
     </View>
+    <View>
+      <Name>PsPowerCfg.PowerRequest</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerRequest</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>Type</Label><Width>16</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Caller</Label><Width>8</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Name</Label></TableColumnHeader>
+          <TableColumnHeader><Label>Reason</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>Type</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>CallerType</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.Path) { $_.Path } else { $_.Name }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Reason</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
+      <Name>PsPowerCfg.PowerWakeTimer</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerWakeTimer</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>Expires</Label><Width>22</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Owner</Label></TableColumnHeader>
+          <TableColumnHeader><Label>Reason</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>Expires</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>if ($_.Path) { $_.Path } elseif ($_.Owner) { $_.Owner } else { $_.Text }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Reason</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
+      <Name>PsPowerCfg.PowerRequestOverride</Name>
+      <ViewSelectedBy>
+        <TypeName>PsPowerCfg.PowerRequestOverride</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>CallerType</Label><Width>10</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Name</Label><Width>40</Width></TableColumnHeader>
+          <TableColumnHeader><Label>Request</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><PropertyName>CallerType</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>Name</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>$_.Request -join ', '</ScriptBlock></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
   </ViewDefinitions>
 </Configuration>
