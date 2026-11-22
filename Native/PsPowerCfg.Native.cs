@@ -141,6 +141,11 @@ namespace PsPowerCfg
 
     public static class PowerApi
     {
+        // Set by the module loader to the hash of the source this assembly was
+        // built from, so a re-import after an upgrade can detect that an older
+        // build is still loaded (a loaded .NET type cannot be replaced).
+        public static string LoadedSourceHash;
+
         private static Guid[] Wrap(Guid? g)
         {
             return g.HasValue ? new Guid[] { g.Value } : null;

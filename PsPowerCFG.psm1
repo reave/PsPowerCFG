@@ -19,21 +19,30 @@ function Initialize-PsPowerCfgNative {
     [CmdletBinding()]
     param()
 
-    if ('PsPowerCfg.PowerApi' -as [type]) { return }
-
     $sourcePath = Join-Path -Path $PSScriptRoot -ChildPath 'Native\PsPowerCfg.Native.cs'
     $source = [System.IO.File]::ReadAllText($sourcePath)
 
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($source))
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $hash = ([System.BitConverter]::ToString($hashBytes, 0, 8)).Replace('-', '').ToLowerInvariant()
+
+    $loaded = 'PsPowerCfg.PowerApi' -as [type]
+    if ($loaded) {
+        $field = $loaded.GetField('LoadedSourceHash')
+        $loadedHash = if ($field) { $field.GetValue($null) } else { $null }
+        if ($loadedHash -eq $hash) { return }
+        throw ("PsPowerCFG: this session already has a different build of the native layer loaded " +
+            "($(if ($loadedHash) { $loadedHash } else { 'pre-1.2' }), module needs $hash). " +
+            '.NET cannot unload it. Start a new PowerShell session and import the module again.')
+    }
+
     $dllPath = $null
     try {
-        $sha = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($source))
-        }
-        finally {
-            $sha.Dispose()
-        }
-        $hash = ([System.BitConverter]::ToString($hashBytes, 0, 8)).Replace('-', '').ToLowerInvariant()
         $edition = if ($PSVersionTable.PSEdition -eq 'Core') { 'core' } else { 'desktop' }
         $clr = [System.Environment]::Version
         $cacheRoot = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
@@ -86,6 +95,7 @@ function Initialize-PsPowerCfgNative {
     if (-not ('PsPowerCfg.PowerApi' -as [type])) {
         Add-Type -TypeDefinition $source -ErrorAction Stop
     }
+    [PsPowerCfg.PowerApi]::LoadedSourceHash = $hash
 }
 
 Initialize-PsPowerCfgNative
