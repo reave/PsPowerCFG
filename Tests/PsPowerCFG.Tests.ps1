@@ -180,9 +180,24 @@ Describe 'Scheme management' -Tag 'Mutating' {
         (Get-PowerScheme).Guid | Should -Not -Contain $victim.Guid
     }
 
-    It 'Restore-DefaultPowerScheme -WhatIf changes nothing' {
+    It 'Remove-PowerScheme refuses a built-in scheme without -Force' {
+        $builtIn = Get-PowerScheme | Where-Object { -not $_.IsActive -and $_.Guid -in @([guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', [guid]'a1841308-3541-4fab-bc81-f71556f20b4a') } | Select-Object -First 1
+        if (-not $builtIn) { Set-ItResult -Skipped -Because 'no inactive built-in scheme'; return }
+        Remove-PowerScheme -Guid $builtIn.Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsBuiltIn*'
+        (Get-PowerScheme).Guid | Should -Contain $builtIn.Guid
+    }
+
+    It 'Restore-DefaultPowerScheme requires -All for the full reset' {
+        (Get-Command Restore-DefaultPowerScheme).ParameterSets.Name | Should -Not -Contain '__AllParameterSets'
+        { Restore-DefaultPowerScheme -Confirm:$false -ErrorAction Stop } | Should -Throw
+    }
+
+    It 'Restore-DefaultPowerScheme -All -WhatIf changes nothing and writes no backup' {
         $before = @((Get-PowerScheme).Guid | Sort-Object)
-        Restore-DefaultPowerScheme -WhatIf
+        $out = Restore-DefaultPowerScheme -All -BackupPath (Join-Path $script:tmp 'bk') -WhatIf
+        $out | Should -BeNullOrEmpty
+        Test-Path (Join-Path $script:tmp 'bk') | Should -BeFalse
         @((Get-PowerScheme).Guid | Sort-Object) | Should -Be $before
     }
 }

@@ -5,10 +5,15 @@ function Remove-PowerScheme {
     .DESCRIPTION
     Calls PowerDeleteScheme. The active scheme cannot be deleted; activate a
     different scheme first. Prompts for confirmation by default (ConfirmImpact
-    High) because built-in schemes can be deleted too and only come back via
-    Restore-DefaultPowerScheme.
+    High).
+
+    Built-in Windows schemes (Balanced, High performance, Power saver,
+    Ultimate Performance) are refused unless -Force is passed, because the
+    only way back is Restore-DefaultPowerScheme.
     .PARAMETER Guid
     Scheme GUID(s). Accepts pipeline input from Get-PowerScheme.
+    .PARAMETER Force
+    Allow deleting a built-in Windows scheme. Still prompts unless -Confirm:$false.
     .EXAMPLE
     Get-PowerScheme -Name 'Test*' | Remove-PowerScheme -Confirm:$false
     #>
@@ -16,7 +21,9 @@ function Remove-PowerScheme {
     param(
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('ID', 'SchemeGuid')]
-        [guid[]]$Guid
+        [guid[]]$Guid,
+
+        [switch]$Force
     )
 
     process {
@@ -25,6 +32,13 @@ function Remove-PowerScheme {
                 $exception = [System.InvalidOperationException]::new("Power scheme $g is active and cannot be deleted. Activate another scheme first.")
                 $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
                         $exception, 'PowerSchemeIsActive', [System.Management.Automation.ErrorCategory]::InvalidOperation, $g))
+                continue
+            }
+
+            if (-not $Force -and $script:BuiltInPowerSchemes -contains $g) {
+                $exception = [System.InvalidOperationException]::new("Power scheme $g is a built-in Windows scheme. Pass -Force to delete it; Restore-DefaultPowerScheme brings it back.")
+                $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
+                        $exception, 'PowerSchemeIsBuiltIn', [System.Management.Automation.ErrorCategory]::InvalidOperation, $g))
                 continue
             }
 
