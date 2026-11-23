@@ -1677,4 +1677,38 @@ aded5e82-b909-4619-9949-f5d71dac0bcb    VIDEONORMALLEVEL
             }
         }
     }
+
+    // ---------------------------------------------------------------
+    // NT device paths (\Device\HarddiskVolume3\...) to drive-letter paths,
+    // for the process names powercfg /requests and /waketimers print.
+    // ---------------------------------------------------------------
+    public static class DevicePath
+    {
+        [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint QueryDosDeviceW(string deviceName, StringBuilder targetPath, int max);
+
+        // Returns the path unchanged when no drive maps to its device.
+        public static string ToDosPath(string ntPath)
+        {
+            if (string.IsNullOrEmpty(ntPath) || !ntPath.StartsWith(@"\Device\", StringComparison.OrdinalIgnoreCase)) { return ntPath; }
+            string[] drives;
+            try { drives = Environment.GetLogicalDrives(); }
+            catch (System.IO.IOException) { return ntPath; }
+            catch (UnauthorizedAccessException) { return ntPath; }
+            StringBuilder target = new StringBuilder(1024);
+            foreach (string drive in drives)
+            {
+                string letter = drive.TrimEnd('\\');
+                target.Length = 0;
+                if (QueryDosDeviceW(letter, target, target.Capacity) == 0) { continue; }
+                // The first string of the multi-string is the current target.
+                string device = target.ToString();
+                if (ntPath.StartsWith(device + @"\", StringComparison.OrdinalIgnoreCase))
+                {
+                    return letter + ntPath.Substring(device.Length);
+                }
+            }
+            return ntPath;
+        }
+    }
 }

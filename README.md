@@ -36,6 +36,13 @@ Scheme and setting operations call `powrprof.dll` directly through a small C# P/
 | `Get-PowerHibernate` | `/hibernate` (status) | CallNtPowerInformation + registry |
 | `Set-PowerHibernate` | `/hibernate on\|off`, `/size`, `/type` | powercfg.exe (admin; see below) |
 | `Get-PowerBatteryState` | none | CallNtPowerInformation |
+| `Export-EnergyReport` | `/energy` | powercfg.exe (admin) |
+| `Export-BatteryReport` | `/batteryreport` | powercfg.exe |
+| `Export-PowerProvisioningXml` | `/pxml` | powercfg.exe (admin) |
+| `Get-PowerRequest` | `/requests` | powercfg.exe, parsed (admin; no public API lists other processes' requests) |
+| `Get-PowerWakeTimer` | `/waketimers` | powercfg.exe, parsed (admin; no public API; fields parsed from English output only) |
+| `Get-PowerRequestOverride` | `/requestsoverride` (list) | registry |
+| `Set-PowerRequestOverride` / `Remove-PowerRequestOverride` | `/requestsoverride <type> <name> [...]` | powercfg.exe, result verified in the registry (admin) |
 
 Every `-Scheme`, `-Subgroup` and `-Setting` parameter accepts a GUID or a powercfg alias (`SCHEME_CURRENT`, `SUB_SLEEP`, `STANDBYIDLE`, ...); `-Scheme` also accepts a scheme name. `-Subgroup` can usually be omitted: it is looked up from the setting.
 

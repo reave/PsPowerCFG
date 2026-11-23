@@ -43,7 +43,9 @@ Describe 'Module' {
             'Get-PowerSetting', 'Set-PowerSetting', 'Set-PowerTimeout', 'Remove-PowerSetting', 'Set-PowerSettingAttribute',
             'Get-PowerAlias', 'Get-PowerSecurityDescriptor', 'Set-PowerSecurityDescriptor',
             'Get-PowerCapability', 'Get-PowerDevice', 'Enable-PowerDeviceWake', 'Disable-PowerDeviceWake',
-            'Get-PowerLastWake', 'Get-PowerHibernate', 'Set-PowerHibernate', 'Get-PowerBatteryState')
+            'Get-PowerLastWake', 'Get-PowerHibernate', 'Set-PowerHibernate', 'Get-PowerBatteryState',
+            'Export-EnergyReport', 'Export-BatteryReport', 'Export-PowerProvisioningXml',
+            'Get-PowerRequest', 'Get-PowerWakeTimer', 'Get-PowerRequestOverride', 'Set-PowerRequestOverride', 'Remove-PowerRequestOverride')
         $cmds | Should -Be ($expected | Sort-Object)
     }
 
@@ -583,6 +585,154 @@ Describe 'Hibernate' {
     }
 }
 
+Describe 'Power requests and wake timers' {
+    Context 'not elevated' -Skip:$isAdmin {
+        It '<Command> throws ElevationRequired' -ForEach @(@{ Command = 'Get-PowerRequest' }, @{ Command = 'Get-PowerWakeTimer' }) {
+            { & $Command } | Should -Throw -ErrorId "ElevationRequired,$Command"
+        }
+    }
+
+    Context 'elevated' -Skip:(-not $isAdmin) {
+        BeforeAll {
+            # Test-only helpers: hold a power request and a resumable timer
+            # in this process so there is something known to find.
+            Add-Type -Namespace PsPowerCfgTest -Name Native -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+public struct REASON_CONTEXT { public uint Version; public uint Flags; public string SimpleReasonString; }
+[DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr PowerCreateRequest(ref REASON_CONTEXT c);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool PowerSetRequest(IntPtr h, int t);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool PowerClearRequest(IntPtr h, int t);
+[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] public static extern IntPtr CreateWaitableTimerW(IntPtr a, bool manualReset, string name);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetWaitableTimer(IntPtr h, ref long due, int period, IntPtr r, IntPtr a, bool resume);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool CancelWaitableTimer(IntPtr h);
+[DllImport("kernel32.dll", SetLastError = true)] public static extern bool CloseHandle(IntPtr h);
+'@
+            $script:exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+            $script:reason = 'PsPowerCFG test ' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+            $ctx = New-Object PsPowerCfgTest.Native+REASON_CONTEXT
+            $ctx.Version = 0; $ctx.Flags = 1; $ctx.SimpleReasonString = $script:reason
+            $script:request = [PsPowerCfgTest.Native]::PowerCreateRequest([ref]$ctx)
+            [void][PsPowerCfgTest.Native]::PowerSetRequest($script:request, 0)   # Display
+            [void][PsPowerCfgTest.Native]::PowerSetRequest($script:request, 1)   # System
+
+            $script:timer = [PsPowerCfgTest.Native]::CreateWaitableTimerW([IntPtr]::Zero, $true, $null)
+            $due = -72000000000L   # 2 hours, relative
+            $script:timerDue = [datetime]::Now.AddHours(2)
+            [void][PsPowerCfgTest.Native]::SetWaitableTimer($script:timer, [ref]$due, 0, [IntPtr]::Zero, [IntPtr]::Zero, $true)
+        }
+        AfterAll {
+            foreach ($t in 0, 1) { [void][PsPowerCfgTest.Native]::PowerClearRequest($script:request, $t) }
+            [void][PsPowerCfgTest.Native]::CloseHandle($script:request)
+            [void][PsPowerCfgTest.Native]::CancelWaitableTimer($script:timer)
+            [void][PsPowerCfgTest.Native]::CloseHandle($script:timer)
+        }
+
+        It 'Get-PowerRequest finds this process''s display and system requests with their reason' {
+            $mine = @(Get-PowerRequest | Where-Object { $_.Reason -eq $script:reason })
+            ($mine.Type | Sort-Object) -join ',' | Should -Be 'Display,System'
+            foreach ($r in $mine) {
+                $r.CallerType | Should -Be 'Process'
+                $r.Path | Should -Be $script:exe
+            }
+        }
+        It 'Get-PowerRequest -Type filters' {
+            @(Get-PowerRequest -Type System | Where-Object { $_.Reason -eq $script:reason }).Count | Should -Be 1
+            @(Get-PowerRequest -Type AwayMode | Where-Object { $_.Reason -eq $script:reason }).Count | Should -Be 0
+        }
+        It 'Get-PowerWakeTimer finds this process''s timer' {
+            $mine = @(Get-PowerWakeTimer | Where-Object { $_.Path -eq $script:exe })
+            if (-not $mine.Count -and @(Get-PowerWakeTimer | Where-Object { -not $_.OwnerType }).Count) {
+                Set-ItResult -Skipped -Because 'powercfg output is not English'; return
+            }
+            $mine.Count | Should -BeGreaterOrEqual 1
+            $mine[0].OwnerType | Should -Be 'Process'
+            [math]::Abs(($mine[0].Expires - $script:timerDue).TotalMinutes) | Should -BeLessThan 3
+        }
+    }
+}
+
+Describe 'Request overrides' {
+    BeforeAll {
+        function script:Get-CliOverrides {
+            $known = 'DISPLAY', 'SYSTEM', 'AWAYMODE', 'EXECUTION'
+            $section = $null
+            foreach ($line in powercfg.exe /requestsoverride) {
+                if ($line -match '^\[(SERVICE|PROCESS|DRIVER)\]$') { $section = $Matches[1]; continue }
+                if (-not $line.Trim() -or -not $section) { continue }
+                $tokens = [Collections.Generic.List[string]]($line.Trim() -split ' ')
+                $types = [Collections.Generic.List[string]]::new()
+                while ($tokens.Count -gt 1 -and $known -contains $tokens[$tokens.Count - 1]) {
+                    $types.Insert(0, $tokens[$tokens.Count - 1]); $tokens.RemoveAt($tokens.Count - 1)
+                }
+                '{0}|{1}|{2}' -f $section, ($tokens -join ' '), ($types -join ' ')
+            }
+        }
+        function script:Get-OurOverrides {
+            foreach ($o in Get-PowerRequestOverride) {
+                '{0}|{1}|{2}' -f $o.CallerType.ToUpperInvariant(), $o.Name, (($o.Request | ForEach-Object { $_.ToUpperInvariant() }) -join ' ')
+            }
+        }
+    }
+    It 'Get-PowerRequestOverride matches powercfg /requestsoverride' {
+        (@(Get-OurOverrides) | Sort-Object) -join "`n" | Should -Be ((@(Get-CliOverrides) | Sort-Object) -join "`n")
+    }
+    It 'Set-PowerRequestOverride throws ElevationRequired when not elevated' -Skip:$isAdmin {
+        { Set-PowerRequestOverride -CallerType Process -Name x.exe -Request Display } | Should -Throw -ErrorId 'ElevationRequired,Set-PowerRequestOverride'
+    }
+    It 'Set-PowerRequestOverride -WhatIf writes nothing' -Skip:(-not $isAdmin) {
+        Set-PowerRequestOverride -CallerType Process -Name 'PsPowerCFG-whatif.exe' -Request Display -WhatIf
+        Get-PowerRequestOverride -Name 'PsPowerCFG-whatif.exe' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Request override changes' -Tag 'Mutating' -Skip:(-not ($runMutating -and $isAdmin)) {
+    BeforeAll { $script:fake = 'PsPowerCFG-test.exe' }
+    AfterAll {
+        if (Get-PowerRequestOverride -CallerType Process -Name $script:fake) { powercfg.exe /requestsoverride process $script:fake | Out-Null }
+    }
+    It 'sets, replaces and removes an override on a fake process (verified with powercfg)' {
+        $o = Set-PowerRequestOverride -CallerType Process -Name $script:fake -Request Display, Execution -Confirm:$false -PassThru
+        $o.Mask | Should -Be 9
+        (powercfg.exe /requestsoverride | Out-String) | Should -Match "(?m)^$([regex]::Escape($script:fake)) DISPLAY EXECUTION\s*$"
+
+        (Set-PowerRequestOverride -CallerType Process -Name $script:fake -Request System -Confirm:$false -PassThru).Request | Should -Be 'System'
+
+        Remove-PowerRequestOverride -CallerType Process -Name $script:fake -Confirm:$false
+        Get-PowerRequestOverride -CallerType Process -Name $script:fake | Should -BeNullOrEmpty
+        (powercfg.exe /requestsoverride | Out-String) | Should -Not -Match ([regex]::Escape($script:fake))
+    }
+    It 'Remove-PowerRequestOverride reports a missing override once' {
+        Remove-PowerRequestOverride -CallerType Process -Name 'PsPowerCFG-none.exe' -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Be 1
+        $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerRequestOverrideNotFound*'
+    }
+}
+
+Describe 'Export-BatteryReport' {
+    BeforeAll {
+        $script:bout = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($script:bout)
+    }
+    AfterAll {
+        Remove-Item -LiteralPath $script:bout -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    It 'writes XML and reformats it to HTML' {
+        try {
+            $x = Export-BatteryReport -FormatXML -OutFile (Join-Path $script:bout 'battery') -ErrorAction Stop
+        }
+        catch {
+            if ($_.FullyQualifiedErrorId -like 'PowerCfgFailed*' -and -not (Get-PowerCapability).SystemBatteriesPresent) {
+                Set-ItResult -Skipped -Because "no battery: $($_.Exception.Message)"; return
+            }
+            throw
+        }
+        $x.Extension | Should -Be '.xml'
+        $h = Export-BatteryReport -ReformatXML -FilePath $x.FullName
+        $h.Extension | Should -Be '.html'
+        $h.Exists | Should -BeTrue
+    }
+}
+
 Describe 'Report functions' {
     BeforeAll {
         $script:out = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N'))
@@ -630,6 +780,19 @@ Describe 'Report functions' {
             $f = Export-SRUMDB -OutFile (Join-Path $script:out 'srum')
             $f.Extension | Should -Be '.csv'
             $f.Exists | Should -BeTrue
+        }
+
+        It 'Export-EnergyReport writes HTML' {
+            $f = Export-EnergyReport -OutFile (Join-Path $script:out 'energy') -Duration 5
+            $f.Extension | Should -Be '.html'
+            $f.Exists | Should -BeTrue
+        }
+
+        It 'Export-PowerProvisioningXml writes XML with the given name' {
+            $f = Export-PowerProvisioningXml -OutFile (Join-Path $script:out 'pxml') -Name 'PsPowerCFG.Test' -Version '1.2'
+            $f.Extension | Should -Be '.xml'
+            $x = [xml][IO.File]::ReadAllText($f.FullName)
+            $x.OuterXml | Should -Match 'PsPowerCFG\.Test'
         }
 
         It 'resolves relative paths against $PWD, not the process directory' {
