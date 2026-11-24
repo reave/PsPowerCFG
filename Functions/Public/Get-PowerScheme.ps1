@@ -65,7 +65,8 @@ function Get-PowerScheme {
         }
 
         if (-not $Name) {
-            $schemes
+            # Enumerate so each PowerScheme is written, not the array.
+            $PSCmdlet.WriteObject($schemes, $true)
             return
         }
 
