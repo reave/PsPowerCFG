@@ -1,41 +1,45 @@
 function Get-PowerDevice {
     <#
     .SYNOPSIS
-    Lists devices by power capability. Equivalent to powercfg /devicequery.
+        Lists devices by power capability. Equivalent to powercfg /devicequery.
     .DESCRIPTION
-    Calls DevicePowerEnumDevices for the query, plus the wake_programmable
-    and wake_armed lists so every result says whether it can be armed to wake
-    the system and whether it is armed now. The device list is opened once
-    for all three queries.
-    .PARAMETER Query
-    The powercfg /devicequery flag: WakeFromS1Supported, WakeFromS2Supported,
-    WakeFromS3Supported, WakeFromAny, S1Supported, S2Supported, S3Supported,
-    S4Supported, WakeProgrammable, WakeArmed or AllDevices (the default).
-    .PARAMETER Name
-    Filter by device name. Wildcards are supported.
+        Calls DevicePowerEnumDevices for the query, plus the wake_programmable
+        and wake_armed lists so every result says whether it can be armed to wake
+        the system and whether it is armed now. The device list is opened once
+        for all three queries.
     .EXAMPLE
-    Get-PowerDevice -Query WakeArmed
+        Get-PowerDevice -Query WakeArmed
+
+        Lists the devices that are armed to wake the system right now.
     .EXAMPLE
-    Get-PowerDevice -Query WakeProgrammable -Name '*mouse*' | Disable-PowerDeviceWake -WhatIf
+        Get-PowerDevice -Query WakeProgrammable -Name '*mouse*' | Disable-PowerDeviceWake -WhatIf
+
+        Shows which mouse devices Disable-PowerDeviceWake would disarm, without changing them.
     .OUTPUTS
-    PsPowerCfg.PowerDevice
+        PsPowerCfg.PowerDevice
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerDevice])]
     param(
+        # The powercfg /devicequery flag: WakeFromS1Supported, WakeFromS2Supported,
+        # WakeFromS3Supported, WakeFromAny, S1Supported, S2Supported, S3Supported,
+        # S4Supported, WakeProgrammable, WakeArmed or AllDevices (the default).
         [Parameter(Position = 0)]
         [PsPowerCfg.PowerDeviceQuery]$Query = [PsPowerCfg.PowerDeviceQuery]::AllDevices,
 
+        # Filter by device name. Wildcards are supported.
         [SupportsWildcards()]
         [string]$Name = '*'
     )
 
     $r = [PsPowerCfg.Safe]::GetDevices($Query)
     if ($r.Failed) {
-        $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'GetPowerDeviceFailed' -TargetObject $Query))
+        $record = New-NativeErrorRecord -Result $r -ErrorId 'GetPowerDeviceFailed' -TargetObject $Query
+        $PSCmdlet.WriteError($record)
         return
     }
-    $pattern = [System.Management.Automation.WildcardPattern]::new($Name, [System.Management.Automation.WildcardOptions]::IgnoreCase)
+    $ignoreCase = [System.Management.Automation.WildcardOptions]::IgnoreCase
+    $pattern = [System.Management.Automation.WildcardPattern]::new($Name, $ignoreCase)
     foreach ($d in $r.Value) {
         # -eq as well: names with [ ] do not match themselves as patterns.
         if ($d.Name -eq $Name -or $pattern.IsMatch($d.Name)) { $d }

@@ -1,25 +1,33 @@
 function Invoke-PowerCfg {
     <#
     .SYNOPSIS
-    Runs powercfg.exe in-process-launched mode with stdout/stderr captured in
-    memory. Used only for options that have no public Win32 API.
+        Runs powercfg.exe in-process-launched mode with stdout/stderr captured in
+        memory. Used only for options that have no public Win32 API.
     .DESCRIPTION
-    Uses System.Diagnostics.Process directly instead of Start-Process: no temp
-    files, no shared file names across concurrent runs, and the exit code and
-    error text are always surfaced.
+        Uses System.Diagnostics.Process directly instead of Start-Process: no temp
+        files, no shared file names across concurrent runs, and the exit code and
+        error text are always surfaced.
 
-    Throws a terminating error in the calling cmdlet on a non-zero exit code.
-    Returns stdout as a string.
+        Throws a terminating error in the calling cmdlet on a non-zero exit code.
+        Returns stdout as a string.
+    .EXAMPLE
+        $text = Invoke-PowerCfg -Cmdlet $PSCmdlet -ArgumentList '/requests'
+
+        Runs powercfg.exe /requests and returns its standard output. A non-zero exit
+        code stops the calling public function with a PowerCfgFailed error.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
+        # The caller's $PSCmdlet, so the error is attributed to the public function.
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCmdlet]$Cmdlet,
 
+        # powercfg.exe arguments, one per element. Each is quoted as needed.
         [Parameter(Mandatory = $true)]
         [string[]]$ArgumentList,
 
+        # Working directory for powercfg.exe. Some options write relative files there.
         [string]$WorkingDirectory
     )
 
@@ -49,7 +57,7 @@ function Invoke-PowerCfg {
     $psi.RedirectStandardError = $true
     if ($WorkingDirectory) { $psi.WorkingDirectory = $WorkingDirectory }
 
-    Write-Verbose "powercfg.exe $($psi.Arguments)"
+    Write-Verbose -Message "powercfg.exe $($psi.Arguments)"
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $psi
     try {
@@ -60,18 +68,20 @@ function Invoke-PowerCfg {
         $process.WaitForExit()
         $stderr = $stderrTask.GetAwaiter().GetResult()
         $exitCode = $process.ExitCode
-    }
-    finally {
+    } finally {
         $process.Dispose()
     }
 
     if ($exitCode -ne 0) {
-        $message = (($stderr, $stdout) | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1)
+        $message = (($stderr, $stdout) | Where-Object -FilterScript { $_ -and $_.Trim() } | Select-Object -First 1)
         if (-not $message) { $message = 'no output' }
         $exception = [System.ComponentModel.Win32Exception]::new(
             $exitCode, "powercfg.exe $($psi.Arguments) failed with exit code $exitCode`: $($message.Trim())")
         $record = [System.Management.Automation.ErrorRecord]::new(
-            $exception, 'PowerCfgFailed', [System.Management.Automation.ErrorCategory]::InvalidResult, $ArgumentList)
+            $exception,
+            'PowerCfgFailed',
+            [System.Management.Automation.ErrorCategory]::InvalidResult,
+            $ArgumentList)
         $Cmdlet.ThrowTerminatingError($record)
     }
     $stdout

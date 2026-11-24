@@ -1,22 +1,26 @@
 function Get-PowerBatteryState {
     <#
     .SYNOPSIS
-    Reports AC/battery status, charge and estimated runtime.
+        Reports AC/battery status, charge and estimated runtime.
     .DESCRIPTION
-    Calls CallNtPowerInformation(SystemBatteryState), which combines all
-    batteries into one view. Capacities are in mWh on most systems, and Rate
-    is in mW: positive while charging, negative while discharging, and empty
-    when the battery does not report it.
-    EstimatedTime is empty while on AC or while Windows has no estimate yet.
+        Calls CallNtPowerInformation(SystemBatteryState), which combines all
+        batteries into one view. Capacities are in mWh on most systems, and Rate
+        is in mW: positive while charging, negative while discharging, and empty
+        when the battery does not report it.
+        EstimatedTime is empty while on AC or while Windows has no estimate yet.
 
-    For per-battery design capacity, chemistry and cycle count, use
-    powercfg /batteryreport.
+        For per-battery design capacity, chemistry and cycle count, use
+        powercfg /batteryreport.
     .EXAMPLE
-    Get-PowerBatteryState
+        Get-PowerBatteryState
+
+        Shows AC status, remaining and full capacity, charge rate and estimated runtime.
     .EXAMPLE
-    if (-not (Get-PowerBatteryState).AcOnLine) { 'On battery' }
+        if (-not (Get-PowerBatteryState).AcOnLine) { 'On battery' }
+
+        Outputs 'On battery' when the system is not on AC power.
     .OUTPUTS
-    PsPowerCfg.PowerBatteryState
+        PsPowerCfg.PowerBatteryState
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerBatteryState])]

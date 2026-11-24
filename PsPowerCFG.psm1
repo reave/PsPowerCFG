@@ -16,6 +16,18 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
 # because the type already exists.
 # ---------------------------------------------------------------------------
 function Initialize-PsPowerCfgNative {
+    <#
+    .SYNOPSIS
+        Loads the native layer (PsPowerCfg.* types) from the per-user DLL cache,
+        compiling it first when needed.
+    .EXAMPLE
+        Initialize-PsPowerCfgNative
+
+        Runs once while the module imports, then is removed from the module scope.
+    .NOTES
+        Add-Type is used instead of a shipped binary because the project has no
+        code-signing certificate yet. See the block comment above for the cache.
+    #>
     [CmdletBinding()]
     param()
 
@@ -25,8 +37,7 @@ function Initialize-PsPowerCfgNative {
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($source))
-    }
-    finally {
+    } finally {
         $sha.Dispose()
     }
     $hash = ([System.BitConverter]::ToString($hashBytes, 0, 8)).Replace('-', '').ToLowerInvariant()
@@ -36,27 +47,30 @@ function Initialize-PsPowerCfgNative {
         $field = $loaded.GetField('LoadedSourceHash')
         $loadedHash = if ($field) { $field.GetValue($null) } else { $null }
         if ($loadedHash -eq $hash) { return }
-        $message = "PsPowerCFG: this session already has a different build of the native layer loaded " +
-        "($(if ($loadedHash) { $loadedHash } else { 'pre-1.2' }), module needs $hash). " +
-        '.NET cannot unload it. Start a new PowerShell session and import the module again.'
+        $loadedLabel = if ($loadedHash) { $loadedHash } else { 'pre-1.2' }
+        $message = ('PsPowerCFG: this session already has a different build of the native layer loaded ' +
+            "($loadedLabel, module needs $hash). " +
+            '.NET cannot unload it. Start a new PowerShell session and import the module again.')
         throw [System.Management.Automation.ErrorRecord]::new(
-            [System.InvalidOperationException]::new($message), 'NativeLayerMismatch',
-            [System.Management.Automation.ErrorCategory]::ResourceUnavailable, $loadedHash)
+            [System.InvalidOperationException]::new($message),
+            'NativeLayerMismatch',
+            [System.Management.Automation.ErrorCategory]::ResourceUnavailable,
+            $loadedHash)
     }
 
     $dllPath = $null
     try {
         $edition = if ($PSVersionTable.PSEdition -eq 'Core') { 'core' } else { 'desktop' }
         $clr = [System.Environment]::Version
-        $cacheRoot = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
+        $localAppData = [System.Environment+SpecialFolder]::LocalApplicationData
+        $cacheRoot = [System.Environment]::GetFolderPath($localAppData)
         if ($cacheRoot) {
             $cacheDir = [System.IO.Path]::Combine($cacheRoot, 'PsPowerCFG', 'cache')
             $dllName = 'PsPowerCfg.Native.{0}.{1}{2}.{3}.dll' -f $hash, $edition, $clr.Major, $clr.Minor
             $dllPath = [System.IO.Path]::Combine($cacheDir, $dllName)
         }
-    }
-    catch {
-        Write-Verbose "PsPowerCFG: native cache unavailable: $($_.Exception.Message)"
+    } catch {
+        Write-Verbose -Message "PsPowerCFG: native cache unavailable: $($_.Exception.Message)"
         $dllPath = $null
     }
 
@@ -70,10 +84,9 @@ function Initialize-PsPowerCfgNative {
                 Add-Type -TypeDefinition $source -OutputAssembly $tmp -OutputType Library -ErrorAction Stop
                 try {
                     [System.IO.File]::Move($tmp, $dllPath)
-                }
-                catch {
+                } catch {
                     # Another process won the race; use theirs.
-                    try { [System.IO.File]::Delete($tmp) } catch { Write-Verbose $_.Exception.Message }
+                    try { [System.IO.File]::Delete($tmp) } catch { Write-Verbose -Message $_.Exception.Message }
                 }
             }
             if (-not ('PsPowerCfg.PowerApi' -as [type])) {
@@ -86,12 +99,16 @@ function Initialize-PsPowerCfgNative {
             $suffix = '.{0}{1}.{2}.dll' -f $edition, $clr.Major, $clr.Minor
             foreach ($stale in [System.IO.Directory]::GetFiles($cacheDir, 'PsPowerCfg.Native.*' + $suffix)) {
                 if ($stale -ne $dllPath) {
-                    try { [System.IO.File]::Delete($stale) } catch { Write-Verbose "PsPowerCFG: stale cache in use: $stale" }
+                    try {
+                        [System.IO.File]::Delete($stale)
+                    } catch {
+                        Write-Verbose -Message "PsPowerCFG: stale cache in use: $stale"
+                    }
                 }
             }
-        }
-        catch {
-            Write-Verbose "PsPowerCFG: cached native load failed, compiling in memory: $($_.Exception.Message)"
+        } catch {
+            $reason = $_.Exception.Message
+            Write-Verbose -Message "PsPowerCFG: cached native load failed, compiling in memory: $reason"
         }
     }
 
@@ -112,8 +129,8 @@ Update-TypeData -TypeName PsPowerCfg.PowerScheme -MemberType AliasProperty -Memb
 # ---------------------------------------------------------------------------
 # Functions
 # ---------------------------------------------------------------------------
-$private = @(Get-ChildItem -Path (Join-Path $PSScriptRoot 'Functions\Private') -Filter *.ps1)
-$public = @(Get-ChildItem -Path (Join-Path $PSScriptRoot 'Functions\Public') -Filter *.ps1)
+$private = @(Get-ChildItem -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Functions\Private') -Filter *.ps1)
+$public = @(Get-ChildItem -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Functions\Public') -Filter *.ps1)
 
 foreach ($file in @($private + $public)) {
     . $file.FullName

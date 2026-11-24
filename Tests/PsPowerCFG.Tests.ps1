@@ -1,28 +1,40 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0' }
 # Run under both editions:
-#   powershell.exe -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
-#   pwsh.exe       -NoProfile -Command "Invoke-Pester .\Tests -Output Detailed"
+#   powershell.exe -NoProfile -Command "Invoke-Pester -Path .\Tests -Output Detailed"
+#   pwsh.exe -NoProfile -Command "Invoke-Pester -Path .\Tests -Output Detailed"
+
+# Write-Host prints the timing lines in Pester's output, where Write-Information
+# would be hidden. $isAdmin, $runMutating, $hasAnalyzer and $queries are used by -Skip and
+# -ForEach during discovery, which the analyzer cannot see.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
+param()
 
 BeforeDiscovery {
     # -Skip is evaluated during discovery, before any BeforeAll runs, so the
     # elevation check has to happen here.
-    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     # Tests that create/activate/delete schemes only run when opted in.
     $runMutating = $env:PSPOWERCFG_MUTATING -eq '1'
+    # The style test needs PSScriptAnalyzer, which is optional.
+    $hasAnalyzer = [bool](Get-Module -ListAvailable -Name PSScriptAnalyzer)
 }
 
 BeforeAll {
-    $manifest = Join-Path $PSScriptRoot '..\PsPowerCFG.psd1'
-    Import-Module $manifest -Force -ErrorAction Stop
+    $manifest = Join-Path -Path $PSScriptRoot -ChildPath '..\PsPowerCFG.psd1'
+    Import-Module -Name $manifest -Force -ErrorAction Stop
 
     # Language-neutral ground truth: GUIDs from powercfg.exe output.
-    $script:cliGuids = @(powercfg.exe /list | Select-String -Pattern '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' -AllMatches |
-            ForEach-Object { [guid]$_.Matches[0].Value })
-    $script:cliActive = [guid]((powercfg.exe /getactivescheme | Select-String -Pattern '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}').Matches[0].Value)
+    $script:guidPattern = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    $script:cliGuids = @(powercfg.exe /list | Select-String -Pattern $script:guidPattern -AllMatches |
+            ForEach-Object -Process { [guid]$_.Matches[0].Value })
+    $activeLine = powercfg.exe /getactivescheme | Select-String -Pattern $script:guidPattern
+    $script:cliActive = [guid]$activeLine.Matches[0].Value
 }
 
 AfterAll {
-    Remove-Module PsPowerCFG -ErrorAction SilentlyContinue
+    Remove-Module -Name PsPowerCFG -ErrorAction SilentlyContinue
 }
 
 Describe 'Module' {
@@ -31,26 +43,51 @@ Describe 'Module' {
     }
 
     It 're-imports without recompiling or throwing' {
-        { Import-Module (Join-Path $PSScriptRoot '..\PsPowerCFG.psd1') -Force -ErrorAction Stop } | Should -Not -Throw
+        $manifest = Join-Path -Path $PSScriptRoot -ChildPath '..\PsPowerCFG.psd1'
+        { Import-Module -Name $manifest -Force -ErrorAction Stop } | Should -Not -Throw
     }
 
     It 'exports exactly the manifest functions' {
         $cmds = (Get-Command -Module PsPowerCFG -CommandType Function).Name | Sort-Object
         $expected = @(
-            'Get-PowerScheme', 'Get-ActivePowerScheme', 'Set-ActivePowerScheme', 'Copy-PowerScheme', 'Rename-PowerScheme',
-            'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme', 'Restore-DefaultPowerScheme',
-            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SRUMDB',
-            'Get-PowerSetting', 'Set-PowerSetting', 'Set-PowerTimeout', 'Remove-PowerSetting', 'Set-PowerSettingAttribute',
+            'Get-PowerScheme', 'Get-ActivePowerScheme', 'Set-ActivePowerScheme', 'Copy-PowerScheme',
+            'Rename-PowerScheme', 'Remove-PowerScheme', 'Import-PowerScheme', 'Export-PowerScheme',
+            'Restore-DefaultPowerScheme',
+            'Export-SystemPowerReport', 'Export-SystemSleepDiagnostics', 'Export-SrumDb',
+            'Get-PowerSetting', 'Set-PowerSetting', 'Set-PowerTimeout', 'Remove-PowerSetting',
+            'Set-PowerSettingAttribute',
             'Get-PowerAlias', 'Get-PowerSecurityDescriptor', 'Set-PowerSecurityDescriptor',
             'Get-PowerCapability', 'Get-PowerDevice', 'Enable-PowerDeviceWake', 'Disable-PowerDeviceWake',
             'Get-PowerLastWake', 'Get-PowerHibernate', 'Set-PowerHibernate', 'Get-PowerBatteryState',
             'Export-EnergyReport', 'Export-BatteryReport', 'Export-PowerProvisioningXml',
-            'Get-PowerRequest', 'Get-PowerWakeTimer', 'Get-PowerRequestOverride', 'Set-PowerRequestOverride', 'Remove-PowerRequestOverride')
+            'Get-PowerRequest', 'Get-PowerWakeTimer',
+            'Get-PowerRequestOverride', 'Set-PowerRequestOverride', 'Remove-PowerRequestOverride')
         $cmds | Should -Be ($expected | Sort-Object)
     }
 
+    It 'exports names with the casing the manifest lists' {
+        # Command names are case-insensitive, so the test above passes on case alone.
+        # This one checks the casing users see in Get-Command and tab completion.
+        $manifest = Import-PowerShellDataFile -Path (Join-Path -Path $PSScriptRoot -ChildPath '..\PsPowerCFG.psd1')
+        foreach ($name in $manifest.FunctionsToExport) {
+            (Get-Command -Name $name -Module PsPowerCFG).Name | Should -BeExactly $name
+        }
+    }
+
     It 'keeps the Get-PowerSchemes alias' {
-        (Get-Alias Get-PowerSchemes).ResolvedCommandName | Should -Be 'Get-PowerScheme'
+        (Get-Alias -Name Get-PowerSchemes).ResolvedCommandName | Should -Be 'Get-PowerScheme'
+    }
+}
+
+Describe 'Code style' -Skip:(-not $hasAnalyzer) {
+    It 'passes PSScriptAnalyzer with the repository settings' {
+        # A separate process of the same edition: inside Pester, with the module imported, the
+        # analyzer's own command lookup fails intermittently.
+        $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        $check = Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-StyleCheck.ps1'
+        $report = & $exe -NoProfile -File $check 2>&1 | ForEach-Object -Process { "$_" }
+        $report | Should -BeNullOrEmpty
+        $LASTEXITCODE | Should -Be 0
     }
 }
 
@@ -61,13 +98,13 @@ Describe 'Get-PowerScheme' {
     }
 
     It 'marks exactly one scheme active, matching powercfg /getactivescheme' {
-        $active = @(Get-PowerScheme | Where-Object IsActive)
+        $active = @(Get-PowerScheme | Where-Object -Property IsActive)
         $active.Count | Should -Be 1
         $active[0].Guid | Should -Be $script:cliActive
     }
 
     It 'returns non-empty names' {
-        Get-PowerScheme | ForEach-Object { $_.Name | Should -Not -BeNullOrEmpty }
+        Get-PowerScheme | ForEach-Object -Process { $_.Name | Should -Not -BeNullOrEmpty }
     }
 
     It 'exposes the legacy ID alias property' {
@@ -97,7 +134,7 @@ Describe 'Get-PowerScheme' {
         $sw = [Diagnostics.Stopwatch]::StartNew()
         for ($i = 0; $i -lt 100; $i++) { $null = Get-PowerScheme }
         $sw.Stop()
-        Write-Host ("    Get-PowerScheme x100: {0} ms" -f $sw.ElapsedMilliseconds)
+        Write-Host -Object ('    Get-PowerScheme x100: {0} ms' -f $sw.ElapsedMilliseconds)
         $sw.ElapsedMilliseconds | Should -BeLessThan 2000
     }
 }
@@ -116,7 +153,8 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     BeforeAll {
         $script:originalActive = [PsPowerCfg.PowerApi]::GetActiveScheme()
         $script:created = [System.Collections.Generic.List[guid]]::new()
-        $script:tmp = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-scheme-' + [guid]::NewGuid().ToString('N'))
+        $tmpName = 'PsPowerCFG-scheme-' + [guid]::NewGuid().ToString('N')
+        $script:tmp = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath $tmpName
         [void][IO.Directory]::CreateDirectory($script:tmp)
         $script:source = Get-ActivePowerScheme
     }
@@ -126,11 +164,15 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
             [guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
             [guid]'a1841308-3541-4fab-bc81-f71556f20b4a', [guid]'e9a42b02-d5df-448d-aa00-03f14749eb61')
         # Only ever delete schemes this suite named; never a built-in GUID.
-        $leftovers = [PsPowerCfg.PowerApi]::GetSchemes() | Where-Object {
+        $leftovers = [PsPowerCfg.PowerApi]::GetSchemes() | Where-Object -FilterScript {
             $_.Name -like 'PsPowerCFG*' -and $builtIn -notcontains $_.Guid -and $_.Guid -ne $script:originalActive
         }
         foreach ($s in $leftovers) {
-            try { [PsPowerCfg.PowerApi]::DeleteScheme($s.Guid) } catch { Write-Warning "cleanup $($s.Name): $($_.Exception.Message)" }
+            try {
+                [PsPowerCfg.PowerApi]::DeleteScheme($s.Guid)
+            } catch {
+                Write-Warning -Message "cleanup $($s.Name): $($_.Exception.Message)"
+            }
         }
         Remove-Item -LiteralPath $script:tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -167,7 +209,8 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     }
 
     It 'Remove-PowerScheme refuses the active scheme' {
-        Remove-PowerScheme -Guid (Get-ActivePowerScheme).Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $active = (Get-ActivePowerScheme).Guid
+        Remove-PowerScheme -Guid $active -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
         $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsActive*'
     }
 
@@ -177,13 +220,14 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     }
 
     It 'Export-PowerScheme writes a .pow file' -Skip:(-not $isAdmin) {
-        $f = Export-PowerScheme -Guid $script:created[0] -Path (Join-Path $script:tmp 'x.pow')
+        $f = Export-PowerScheme -Guid $script:created[0] -Path (Join-Path -Path $script:tmp -ChildPath 'x.pow')
         $f | Should -BeOfType [IO.FileInfo]
         $f.Length | Should -BeGreaterThan 0
     }
 
     It 'Import-PowerScheme round-trips an export' -Skip:(-not $isAdmin) {
-        $s = Import-PowerScheme -Path (Join-Path $script:tmp 'x.pow') -NewName 'PsPowerCFG imported'
+        $pow = Join-Path -Path $script:tmp -ChildPath 'x.pow'
+        $s = Import-PowerScheme -Path $pow -NewName 'PsPowerCFG imported'
         $script:created.Add($s.Guid)
         $s.Name | Should -Be 'PsPowerCFG imported'
         (Get-PowerScheme).Guid | Should -Contain $s.Guid
@@ -197,12 +241,22 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     }
 
     It 'Export-PowerScheme and Restore -All throw ElevationRequired when not elevated' -Skip:$isAdmin {
-        { Export-PowerScheme -Guid $script:source.Guid -Path (Join-Path $script:tmp 'n.pow') } | Should -Throw -ErrorId 'ElevationRequired,Export-PowerScheme'
-        { Restore-DefaultPowerScheme -All -WhatIf } | Should -Throw -ErrorId 'ElevationRequired,Restore-DefaultPowerScheme'
+        $pow = Join-Path -Path $script:tmp -ChildPath 'n.pow'
+        { Export-PowerScheme -Guid $script:source.Guid -Path $pow } |
+            Should -Throw -ErrorId 'ElevationRequired,Export-PowerScheme'
+        { Restore-DefaultPowerScheme -All -WhatIf } |
+            Should -Throw -ErrorId 'ElevationRequired,Restore-DefaultPowerScheme'
     }
 
     It 'Remove-PowerScheme refuses a built-in scheme without -Force' {
-        $builtIn = Get-PowerScheme | Where-Object { -not $_.IsActive -and $_.Guid -in @([guid]'381b4222-f694-41f0-9685-ff5bb260df2e', [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', [guid]'a1841308-3541-4fab-bc81-f71556f20b4a') } | Select-Object -First 1
+        $builtInGuids = @(
+            [guid]'381b4222-f694-41f0-9685-ff5bb260df2e'
+            [guid]'8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
+            [guid]'a1841308-3541-4fab-bc81-f71556f20b4a'
+        )
+        $builtIn = Get-PowerScheme |
+            Where-Object -FilterScript { -not $_.IsActive -and $_.Guid -in $builtInGuids } |
+            Select-Object -First 1
         if (-not $builtIn) { Set-ItResult -Skipped -Because 'no inactive built-in scheme'; return }
         Remove-PowerScheme -Guid $builtIn.Guid -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
         $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSchemeIsBuiltIn*'
@@ -210,15 +264,16 @@ Describe 'Scheme management' -Tag 'Mutating' -Skip:(-not $runMutating) {
     }
 
     It 'Restore-DefaultPowerScheme requires -All for the full reset' {
-        (Get-Command Restore-DefaultPowerScheme).ParameterSets.Name | Should -Not -Contain '__AllParameterSets'
+        $sets = (Get-Command -Name Restore-DefaultPowerScheme).ParameterSets.Name
+        $sets | Should -Not -Contain '__AllParameterSets'
         { Restore-DefaultPowerScheme -Confirm:$false -ErrorAction Stop } | Should -Throw
     }
 
     It 'Restore-DefaultPowerScheme -All -WhatIf changes nothing and writes no backup' -Skip:(-not $isAdmin) {
         $before = @((Get-PowerScheme).Guid | Sort-Object)
-        $out = Restore-DefaultPowerScheme -All -BackupPath (Join-Path $script:tmp 'bk') -WhatIf
+        $out = Restore-DefaultPowerScheme -All -BackupPath (Join-Path -Path $script:tmp -ChildPath 'bk') -WhatIf
         $out | Should -BeNullOrEmpty
-        Test-Path (Join-Path $script:tmp 'bk') | Should -BeFalse
+        Test-Path -Path (Join-Path -Path $script:tmp -ChildPath 'bk') | Should -BeFalse
         @((Get-PowerScheme).Guid | Sort-Object) | Should -Be $before
     }
 }
@@ -228,17 +283,19 @@ Describe 'Get-PowerAlias' {
         @(Get-PowerAlias).Count | Should -BeGreaterThan 150
     }
     It 'classifies subgroups and settings' {
-        (Get-PowerAlias SUB_SLEEP).Kind | Should -Be 'Subgroup'
-        $s = Get-PowerAlias STANDBYIDLE
+        (Get-PowerAlias -Name SUB_SLEEP).Kind | Should -Be 'Subgroup'
+        $s = Get-PowerAlias -Name STANDBYIDLE
         $s.Kind | Should -Be 'Setting'
         $s.SubgroupGuid | Should -Be ([guid]'238c9fa8-0aad-41ed-83f4-97be242c8f20')
     }
     It 'matches every alias powercfg /aliases prints' {
-        $cli = powercfg.exe /aliases | ForEach-Object {
-            if ($_ -match '^\s*([0-9a-f-]{36})\s+(\S+)\s*$') { [pscustomobject]@{ Guid = [guid]$Matches[1]; Alias = $Matches[2] } }
+        $cli = powercfg.exe /aliases | ForEach-Object -Process {
+            if ($_ -match '^\s*([0-9a-f-]{36})\s+(\S+)\s*$') {
+                [pscustomobject]@{ Guid = [guid]$Matches[1]; Alias = $Matches[2] }
+            }
         }
         $ours = @{}
-        Get-PowerAlias | ForEach-Object { $ours[$_.Alias] = $_.Guid }
+        Get-PowerAlias | ForEach-Object -Process { $ours[$_.Alias] = $_.Guid }
         foreach ($c in $cli) { $ours[$c.Alias] | Should -Be $c.Guid -Because $c.Alias }
     }
 }
@@ -269,7 +326,7 @@ Describe 'Get-PowerSetting' {
     It 'returns visible settings by default and more with -IncludeHidden' {
         $visible = @(Get-PowerSetting)
         $visible.Count | Should -BeGreaterThan 5
-        $visible | ForEach-Object { $_.IsHidden | Should -BeFalse }
+        $visible | ForEach-Object -Process { $_.IsHidden | Should -BeFalse }
         $script:all.Count | Should -BeGreaterOrEqual $visible.Count
     }
 
@@ -301,7 +358,8 @@ Describe 'Get-PowerSetting' {
     }
 
     It 'accepts scheme aliases, names and pipeline input' {
-        (Get-PowerSetting -Scheme SCHEME_BALANCED -Setting STANDBYIDLE).SchemeGuid | Should -Be ([guid]'381b4222-f694-41f0-9685-ff5bb260df2e')
+        $balanced = [guid]'381b4222-f694-41f0-9685-ff5bb260df2e'
+        (Get-PowerSetting -Scheme SCHEME_BALANCED -Setting STANDBYIDLE).SchemeGuid | Should -Be $balanced
         $p = Get-PowerScheme | Select-Object -First 1
         (Get-PowerSetting -Scheme $p.Name -Setting VIDEOIDLE).SchemeGuid | Should -Be $p.Guid
         ($p | Get-PowerSetting -Setting VIDEOIDLE).SchemeGuid | Should -Be $p.Guid
@@ -322,13 +380,19 @@ Describe 'Get-PowerSetting' {
         $cliSw = [Diagnostics.Stopwatch]::StartNew()
         $null = powercfg.exe /qh
         $cliSw.Stop()
-        Write-Host ("    Get-PowerSetting -IncludeHidden: {0} ms ({1} settings); powercfg /qh: {2} ms" -f $sw.ElapsedMilliseconds, $script:all.Count, $cliSw.ElapsedMilliseconds)
+        $timing = '    Get-PowerSetting -IncludeHidden: {0} ms ({1} settings); powercfg /qh: {2} ms' -f
+        $sw.ElapsedMilliseconds, $script:all.Count, $cliSw.ElapsedMilliseconds
+        Write-Host -Object $timing
         $sw.ElapsedMilliseconds | Should -BeLessThan 5000
     }
 }
 
 Describe 'Get-PowerSecurityDescriptor' {
-    It 'matches powercfg /getsecuritydescriptor for <_>' -ForEach @('ActionSetActive', 'ActionCreate', 'ActionDefault') {
+    It 'matches powercfg /getsecuritydescriptor for <_>' -ForEach @(
+        'ActionSetActive'
+        'ActionCreate'
+        'ActionDefault'
+    ) {
         $cli = (powercfg.exe /getsecuritydescriptor $_ | Out-String).Trim()
         if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
         (Get-PowerSecurityDescriptor -Action $_).Sddl | Should -Be $cli
@@ -357,8 +421,15 @@ Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
     }
     AfterAll {
         [PsPowerCfg.PowerApi]::SetActiveScheme($script:originalActive)
-        Get-PowerScheme | Where-Object { $_.Name -like 'PsPowerCFG*' -and $_.Guid -ne $script:originalActive } |
-            ForEach-Object { try { [PsPowerCfg.PowerApi]::DeleteScheme($_.Guid) } catch { Write-Warning $_.Exception.Message } }
+        $leftovers = Get-PowerScheme |
+            Where-Object -FilterScript { $_.Name -like 'PsPowerCFG*' -and $_.Guid -ne $script:originalActive }
+        foreach ($s in $leftovers) {
+            try {
+                [PsPowerCfg.PowerApi]::DeleteScheme($s.Guid)
+            } catch {
+                Write-Warning -Message $_.Exception.Message
+            }
+        }
     }
 
     It 'Set-PowerSetting writes AC and DC values (verified with powercfg)' {
@@ -372,8 +443,10 @@ Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
 
     It 'Set-PowerSetting rejects out-of-range values unless -Force' {
         $s = Get-PowerSetting -Scheme $script:copy.Guid -Subgroup SUB_BUTTONS -Setting PBUTTONACTION
-        { Set-PowerSetting -Scheme $script:copy.Guid -Setting PBUTTONACTION -AcValue 999 } | Should -Throw -ErrorId 'PowerSettingValueOutOfRange,Set-PowerSetting'
-        (Get-PowerSetting -Scheme $script:copy.Guid -Subgroup SUB_BUTTONS -Setting PBUTTONACTION).AcValue | Should -Be $s.AcValue
+        { Set-PowerSetting -Scheme $script:copy.Guid -Setting PBUTTONACTION -AcValue 999 } |
+            Should -Throw -ErrorId 'PowerSettingValueOutOfRange,Set-PowerSetting'
+        $after = Get-PowerSetting -Scheme $script:copy.Guid -Subgroup SUB_BUTTONS -Setting PBUTTONACTION
+        $after.AcValue | Should -Be $s.AcValue
     }
 
     It 'Set-PowerSetting -WhatIf writes nothing' {
@@ -400,22 +473,29 @@ Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
         try {
             Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden (-not $was)
             (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be (-not $was)
-        }
-        finally {
+        } finally {
             Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $was
         }
         (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be $was
     }
 
     It 'Remove-PowerSetting refuses built-in settings without -Force' -Skip:(-not $isAdmin) {
-        Remove-PowerSetting -Subgroup SUB_SLEEP -Setting STANDBYIDLE -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $removeParams = @{
+            Subgroup      = 'SUB_SLEEP'
+            Setting       = 'STANDBYIDLE'
+            Confirm       = $false
+            ErrorVariable = 'err'
+            ErrorAction   = 'SilentlyContinue'
+        }
+        Remove-PowerSetting @removeParams
         $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerSettingIsBuiltIn*'
         (Get-PowerSetting -Setting STANDBYIDLE) | Should -Not -BeNullOrEmpty
     }
 
     It 'Set-PowerSecurityDescriptor rejects invalid SDDL and honors -WhatIf' -Skip:(-not $isAdmin) {
         $before = (Get-PowerSecurityDescriptor -Action ActionSetActive).Sddl
-        Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'not sddl' -ErrorVariable err -ErrorAction SilentlyContinue
+        $quiet = @{ ErrorVariable = 'err'; ErrorAction = 'SilentlyContinue' }
+        Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'not sddl' @quiet
         $err[0].FullyQualifiedErrorId | Should -BeLike 'InvalidSddl*'
         Set-PowerSecurityDescriptor -Action ActionSetActive -Sddl 'O:BAG:SYD:P(A;CI;KA;;;BA)' -WhatIf
         (Get-PowerSecurityDescriptor -Action ActionSetActive).Sddl | Should -Be $before
@@ -426,7 +506,8 @@ Describe 'Error reporting' {
     # A .NET exception caught inside a function still lands in the caller's
     # -ErrorVariable, so native failures must not throw into PowerShell code.
     It 'writes exactly one error for a native failure (Set-ActivePowerScheme)' {
-        Set-ActivePowerScheme -Guid ([guid]::NewGuid()) -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $quiet = @{ ErrorVariable = 'err'; ErrorAction = 'SilentlyContinue' }
+        Set-ActivePowerScheme -Guid ([guid]::NewGuid()) -Confirm:$false @quiet
         $err.Count | Should -Be 1
         $err[0].FullyQualifiedErrorId | Should -BeLike 'SetActivePowerSchemeFailed*'
     }
@@ -464,12 +545,14 @@ Describe 'Get-PowerCapability' {
         @{ Label = 'Fast startup'; Property = 'FastStartup'; Pattern = 'Fast Startup' }
     ) {
         if (-not $script:english) { Set-ItResult -Skipped -Because 'powercfg output is not English'; return }
-        $script:caps.$Property | Should -Be ($script:available -match $Pattern) -Because "powercfg /a said:`n$script:cliA"
+        $expected = $script:available -match $Pattern
+        $script:caps.$Property | Should -Be $expected -Because "powercfg /a said:`n$script:cliA"
     }
     It 'agrees with powercfg /availablesleepstates on Hibernate (supported and turned on)' {
         if (-not $script:english) { Set-ItResult -Skipped -Because 'powercfg output is not English'; return }
         $ours = $script:caps.HibernateSupported -and (Get-PowerHibernate).Enabled
-        $ours | Should -Be ($script:available -match '(?m)^\s*Hibernate') -Because "powercfg /a said:`n$script:cliA"
+        $expected = $script:available -match '(?m)^\s*Hibernate'
+        $ours | Should -Be $expected -Because "powercfg /a said:`n$script:cliA"
     }
 }
 
@@ -499,11 +582,15 @@ Describe 'Get-PowerDevice' {
         )
     }
     It 'matches powercfg /devicequery <Flag>' -ForEach $queries {
-        $cli = @(powercfg.exe /devicequery $Flag | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'NONE' })
+        $cli = @(powercfg.exe /devicequery $Flag |
+                ForEach-Object -Process { $_.Trim() } |
+                Where-Object -FilterScript { $_ -and $_ -ne 'NONE' })
         if ($LASTEXITCODE -ne 0) { Set-ItResult -Skipped -Because "powercfg failed: $cli"; return }
         # powercfg pads some names with trailing spaces; the API returns
         # them the same way, so trim both sides before comparing.
-        $ours = @(Get-PowerDevice -Query $Query | ForEach-Object { $_.Name.Trim() } | Where-Object { $_ })
+        $ours = @(Get-PowerDevice -Query $Query |
+                ForEach-Object -Process { $_.Name.Trim() } |
+                Where-Object -FilterScript { $_ })
         ($ours | Sort-Object) -join "`n" | Should -Be (($cli | Sort-Object) -join "`n")
     }
     It 'marks armed devices as programmable' {
@@ -519,10 +606,11 @@ Describe 'Get-PowerDevice' {
         $armed = @(Get-PowerDevice -Query WakeArmed)
         if (-not $armed.Count) { Set-ItResult -Skipped -Because 'no wake-armed devices'; return }
         $armed[0] | Disable-PowerDeviceWake -WhatIf
-        (Get-PowerDevice -Query WakeArmed | ForEach-Object Name) | Should -Contain $armed[0].Name
+        (Get-PowerDevice -Query WakeArmed | ForEach-Object -MemberName Name) | Should -Contain $armed[0].Name
     }
     It 'reports a missing device as PowerDeviceNotFound' -Skip:(-not $isAdmin) {
-        Disable-PowerDeviceWake -Name 'PsPowerCFG no such device' -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $quiet = @{ ErrorVariable = 'err'; ErrorAction = 'SilentlyContinue' }
+        Disable-PowerDeviceWake -Name 'PsPowerCFG no such device' -Confirm:$false @quiet
         $err.Count | Should -Be 1
         $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerDeviceNotFound*'
     }
@@ -533,25 +621,26 @@ Describe 'Device wake changes' -Tag 'Mutating' -Skip:(-not ($runMutating -and $i
         $armed = @(Get-PowerDevice -Query WakeArmed)
         if (-not $armed.Count) { Set-ItResult -Skipped -Because 'no wake-armed devices'; return }
         $name = $armed[0].Name
+        $armedNow = { @(powercfg.exe /devicequery wake_armed | ForEach-Object -Process { $_.Trim() }) }
         try {
             $d = Disable-PowerDeviceWake -Name $name -Confirm:$false -PassThru -ErrorAction Stop
             $d.WakeArmed | Should -BeFalse
-            @(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) | Should -Not -Contain $name
-        }
-        finally {
+            & $armedNow | Should -Not -Contain $name
+        } finally {
             Enable-PowerDeviceWake -Name $name -Confirm:$false -ErrorAction SilentlyContinue
-            if (@(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) -notcontains $name) {
+            if ((& $armedNow) -notcontains $name) {
                 powercfg.exe /deviceenableawake $name | Out-Null
             }
         }
-        @(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) | Should -Contain $name
+        & $armedNow | Should -Contain $name
     }
 }
 
 Describe 'Get-PowerLastWake' {
     It 'returns the newest Power-Troubleshooter wake event' {
         $ours = @(Get-PowerLastWake)
-        $theirs = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Power-Troubleshooter'; Id = 1 } -MaxEvents 1 -ErrorAction SilentlyContinue)
+        $filter = @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Power-Troubleshooter'; Id = 1 }
+        $theirs = @(Get-WinEvent -FilterHashtable $filter -MaxEvents 1 -ErrorAction SilentlyContinue)
         $ours.Count | Should -Be $theirs.Count
         if (-not $theirs.Count) { Set-ItResult -Skipped -Because 'no wake events in the System log'; return }
         $ours[0].PSObject.TypeNames | Should -Contain 'PsPowerCfg.PowerWakeEvent'
@@ -587,7 +676,10 @@ Describe 'Hibernate' {
 
 Describe 'Power requests and wake timers' {
     Context 'not elevated' -Skip:$isAdmin {
-        It '<Command> throws ElevationRequired' -ForEach @(@{ Command = 'Get-PowerRequest' }, @{ Command = 'Get-PowerWakeTimer' }) {
+        It '<Command> throws ElevationRequired' -ForEach @(
+            @{ Command = 'Get-PowerRequest' }
+            @{ Command = 'Get-PowerWakeTimer' }
+        ) {
             { & $Command } | Should -Throw -ErrorId "ElevationRequired,$Command"
         }
     }
@@ -599,17 +691,20 @@ Describe 'Power requests and wake timers' {
             Add-Type -Namespace PsPowerCfgTest -Name Native -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 public struct REASON_CONTEXT { public uint Version; public uint Flags; public string SimpleReasonString; }
-[DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr PowerCreateRequest(ref REASON_CONTEXT c);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern IntPtr PowerCreateRequest(ref REASON_CONTEXT c);
 [DllImport("kernel32.dll", SetLastError = true)] public static extern bool PowerSetRequest(IntPtr h, int t);
 [DllImport("kernel32.dll", SetLastError = true)] public static extern bool PowerClearRequest(IntPtr h, int t);
-[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] public static extern IntPtr CreateWaitableTimerW(IntPtr a, bool manualReset, string name);
-[DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetWaitableTimer(IntPtr h, ref long due, int period, IntPtr r, IntPtr a, bool resume);
+[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern IntPtr CreateWaitableTimerW(IntPtr a, bool manualReset, string name);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool SetWaitableTimer(IntPtr h, ref long due, int period, IntPtr r, IntPtr a, bool resume);
 [DllImport("kernel32.dll", SetLastError = true)] public static extern bool CancelWaitableTimer(IntPtr h);
 [DllImport("kernel32.dll", SetLastError = true)] public static extern bool CloseHandle(IntPtr h);
 '@
             $script:exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
             $script:reason = 'PsPowerCFG test ' + [guid]::NewGuid().ToString('N').Substring(0, 8)
-            $ctx = New-Object PsPowerCfgTest.Native+REASON_CONTEXT
+            $ctx = New-Object -TypeName PsPowerCfgTest.Native+REASON_CONTEXT
             $ctx.Version = 0; $ctx.Flags = 1; $ctx.SimpleReasonString = $script:reason
             $script:request = [PsPowerCfgTest.Native]::PowerCreateRequest([ref]$ctx)
             [void][PsPowerCfgTest.Native]::PowerSetRequest($script:request, 0)   # Display
@@ -618,7 +713,8 @@ public struct REASON_CONTEXT { public uint Version; public uint Flags; public st
             $script:timer = [PsPowerCfgTest.Native]::CreateWaitableTimerW([IntPtr]::Zero, $true, $null)
             $due = -72000000000L   # 2 hours, relative
             $script:timerDue = [datetime]::Now.AddHours(2)
-            [void][PsPowerCfgTest.Native]::SetWaitableTimer($script:timer, [ref]$due, 0, [IntPtr]::Zero, [IntPtr]::Zero, $true)
+            $zero = [IntPtr]::Zero
+            [void][PsPowerCfgTest.Native]::SetWaitableTimer($script:timer, [ref]$due, 0, $zero, $zero, $true)
         }
         AfterAll {
             foreach ($t in 0, 1) { [void][PsPowerCfgTest.Native]::PowerClearRequest($script:request, $t) }
@@ -628,7 +724,7 @@ public struct REASON_CONTEXT { public uint Version; public uint Flags; public st
         }
 
         It 'Get-PowerRequest finds this process''s display and system requests with their reason' {
-            $mine = @(Get-PowerRequest | Where-Object { $_.Reason -eq $script:reason })
+            $mine = @(Get-PowerRequest | Where-Object -FilterScript { $_.Reason -eq $script:reason })
             ($mine.Type | Sort-Object) -join ',' | Should -Be 'Display,System'
             foreach ($r in $mine) {
                 $r.CallerType | Should -Be 'Process'
@@ -636,12 +732,14 @@ public struct REASON_CONTEXT { public uint Version; public uint Flags; public st
             }
         }
         It 'Get-PowerRequest -Type filters' {
-            @(Get-PowerRequest -Type System | Where-Object { $_.Reason -eq $script:reason }).Count | Should -Be 1
-            @(Get-PowerRequest -Type AwayMode | Where-Object { $_.Reason -eq $script:reason }).Count | Should -Be 0
+            $isMine = { $_.Reason -eq $script:reason }
+            @(Get-PowerRequest -Type System | Where-Object -FilterScript $isMine).Count | Should -Be 1
+            @(Get-PowerRequest -Type AwayMode | Where-Object -FilterScript $isMine).Count | Should -Be 0
         }
         It 'Get-PowerWakeTimer finds this process''s timer' {
-            $mine = @(Get-PowerWakeTimer | Where-Object { $_.Path -eq $script:exe })
-            if (-not $mine.Count -and @(Get-PowerWakeTimer | Where-Object { -not $_.OwnerType }).Count) {
+            $mine = @(Get-PowerWakeTimer | Where-Object -FilterScript { $_.Path -eq $script:exe })
+            $unparsed = @(Get-PowerWakeTimer | Where-Object -FilterScript { -not $_.OwnerType })
+            if (-not $mine.Count -and $unparsed.Count) {
                 Set-ItResult -Skipped -Because 'powercfg output is not English'; return
             }
             $mine.Count | Should -BeGreaterOrEqual 1
@@ -653,7 +751,11 @@ public struct REASON_CONTEXT { public uint Version; public uint Flags; public st
 
 Describe 'Request overrides' {
     BeforeAll {
-        function script:Get-CliOverrides {
+        function script:Get-CliOverride {
+            [CmdletBinding()]
+            [OutputType([string])]
+            param()
+
             $known = 'DISPLAY', 'SYSTEM', 'AWAYMODE', 'EXECUTION'
             $section = $null
             foreach ($line in powercfg.exe /requestsoverride) {
@@ -667,17 +769,24 @@ Describe 'Request overrides' {
                 '{0}|{1}|{2}' -f $section, ($tokens -join ' '), ($types -join ' ')
             }
         }
-        function script:Get-OurOverrides {
+        function script:Get-OurOverride {
+            [CmdletBinding()]
+            [OutputType([string])]
+            param()
+
             foreach ($o in Get-PowerRequestOverride) {
-                '{0}|{1}|{2}' -f $o.CallerType.ToUpperInvariant(), $o.Name, (($o.Request | ForEach-Object { $_.ToUpperInvariant() }) -join ' ')
+                $types = foreach ($request in $o.Request) { $request.ToUpperInvariant() }
+                '{0}|{1}|{2}' -f $o.CallerType.ToUpperInvariant(), $o.Name, ($types -join ' ')
             }
         }
     }
     It 'Get-PowerRequestOverride matches powercfg /requestsoverride' {
-        (@(Get-OurOverrides) | Sort-Object) -join "`n" | Should -Be ((@(Get-CliOverrides) | Sort-Object) -join "`n")
+        $expected = (@(Get-CliOverride) | Sort-Object) -join "`n"
+        (@(Get-OurOverride) | Sort-Object) -join "`n" | Should -Be $expected
     }
     It 'Set-PowerRequestOverride throws ElevationRequired when not elevated' -Skip:$isAdmin {
-        { Set-PowerRequestOverride -CallerType Process -Name x.exe -Request Display } | Should -Throw -ErrorId 'ElevationRequired,Set-PowerRequestOverride'
+        { Set-PowerRequestOverride -CallerType Process -Name x.exe -Request Display } |
+            Should -Throw -ErrorId 'ElevationRequired,Set-PowerRequestOverride'
     }
     It 'Set-PowerRequestOverride -WhatIf writes nothing' -Skip:(-not $isAdmin) {
         Set-PowerRequestOverride -CallerType Process -Name 'PsPowerCFG-whatif.exe' -Request Display -WhatIf
@@ -688,21 +797,26 @@ Describe 'Request overrides' {
 Describe 'Request override changes' -Tag 'Mutating' -Skip:(-not ($runMutating -and $isAdmin)) {
     BeforeAll { $script:fake = 'PsPowerCFG-test.exe' }
     AfterAll {
-        if (Get-PowerRequestOverride -CallerType Process -Name $script:fake) { powercfg.exe /requestsoverride process $script:fake | Out-Null }
+        if (Get-PowerRequestOverride -CallerType Process -Name $script:fake) {
+            powercfg.exe /requestsoverride process $script:fake | Out-Null
+        }
     }
     It 'sets, replaces and removes an override on a fake process (verified with powercfg)' {
-        $o = Set-PowerRequestOverride -CallerType Process -Name $script:fake -Request Display, Execution -Confirm:$false -PassThru
+        $fake = @{ CallerType = 'Process'; Name = $script:fake }
+        $o = Set-PowerRequestOverride @fake -Request Display, Execution -Confirm:$false -PassThru
         $o.Mask | Should -Be 9
-        (powercfg.exe /requestsoverride | Out-String) | Should -Match "(?m)^$([regex]::Escape($script:fake)) DISPLAY EXECUTION\s*$"
+        $line = "(?m)^$([regex]::Escape($script:fake)) DISPLAY EXECUTION\s*$"
+        (powercfg.exe /requestsoverride | Out-String) | Should -Match $line
 
-        (Set-PowerRequestOverride -CallerType Process -Name $script:fake -Request System -Confirm:$false -PassThru).Request | Should -Be 'System'
+        (Set-PowerRequestOverride @fake -Request System -Confirm:$false -PassThru).Request | Should -Be 'System'
 
         Remove-PowerRequestOverride -CallerType Process -Name $script:fake -Confirm:$false
         Get-PowerRequestOverride -CallerType Process -Name $script:fake | Should -BeNullOrEmpty
         (powercfg.exe /requestsoverride | Out-String) | Should -Not -Match ([regex]::Escape($script:fake))
     }
     It 'Remove-PowerRequestOverride reports a missing override once' {
-        Remove-PowerRequestOverride -CallerType Process -Name 'PsPowerCFG-none.exe' -Confirm:$false -ErrorVariable err -ErrorAction SilentlyContinue
+        $quiet = @{ ErrorVariable = 'err'; ErrorAction = 'SilentlyContinue' }
+        Remove-PowerRequestOverride -CallerType Process -Name 'PsPowerCFG-none.exe' -Confirm:$false @quiet
         $err.Count | Should -Be 1
         $err[0].FullyQualifiedErrorId | Should -BeLike 'PowerRequestOverrideNotFound*'
     }
@@ -710,7 +824,8 @@ Describe 'Request override changes' -Tag 'Mutating' -Skip:(-not ($runMutating -a
 
 Describe 'Export-BatteryReport' {
     BeforeAll {
-        $script:bout = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N'))
+        $tmpName = 'PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N')
+        $script:bout = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath $tmpName
         [void][IO.Directory]::CreateDirectory($script:bout)
     }
     AfterAll {
@@ -718,16 +833,17 @@ Describe 'Export-BatteryReport' {
     }
     It 'writes XML and reformats it to HTML' {
         try {
-            $x = Export-BatteryReport -FormatXML -OutFile (Join-Path $script:bout 'battery') -ErrorAction Stop
-        }
-        catch {
-            if ($_.FullyQualifiedErrorId -like 'PowerCfgFailed*' -and -not (Get-PowerCapability).SystemBatteriesPresent) {
+            $path = Join-Path -Path $script:bout -ChildPath 'battery'
+            $x = Export-BatteryReport -FormatXml -OutFile $path -ErrorAction Stop
+        } catch {
+            $noBattery = -not (Get-PowerCapability).SystemBatteriesPresent
+            if ($_.FullyQualifiedErrorId -like 'PowerCfgFailed*' -and $noBattery) {
                 Set-ItResult -Skipped -Because "no battery: $($_.Exception.Message)"; return
             }
             throw
         }
         $x.Extension | Should -Be '.xml'
-        $h = Export-BatteryReport -ReformatXML -FilePath $x.FullName
+        $h = Export-BatteryReport -ReformatXml -FilePath $x.FullName
         $h.Extension | Should -Be '.html'
         $h.Exists | Should -BeTrue
     }
@@ -735,7 +851,8 @@ Describe 'Export-BatteryReport' {
 
 Describe 'Report functions' {
     BeforeAll {
-        $script:out = Join-Path ([IO.Path]::GetTempPath()) ('PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N'))
+        $tmpName = 'PsPowerCFG-tests-' + [guid]::NewGuid().ToString('N')
+        $script:out = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath $tmpName
         [void][IO.Directory]::CreateDirectory($script:out)
     }
     AfterAll {
@@ -744,63 +861,68 @@ Describe 'Report functions' {
 
     Context 'not elevated' -Skip:$isAdmin {
         It 'Export-SystemPowerReport throws ElevationRequired' {
-            { Export-SystemPowerReport -OutFile (Join-Path $script:out 'x.html') } | Should -Throw -ErrorId 'ElevationRequired,Export-SystemPowerReport'
+            $path = Join-Path -Path $script:out -ChildPath 'x.html'
+            { Export-SystemPowerReport -OutFile $path } |
+                Should -Throw -ErrorId 'ElevationRequired,Export-SystemPowerReport'
         }
     }
 
     Context 'elevated' -Skip:(-not $isAdmin) {
         It 'Export-SystemPowerReport writes HTML and returns FileInfo' {
-            $f = Export-SystemPowerReport -OutFile (Join-Path $script:out 'spr') -Duration 1
+            $f = Export-SystemPowerReport -OutFile (Join-Path -Path $script:out -ChildPath 'spr') -Duration 1
             $f | Should -BeOfType [IO.FileInfo]
             $f.Extension | Should -Be '.html'
             $f.Exists | Should -BeTrue
         }
 
-        It 'Export-SystemPowerReport XML round-trips through -ReformatXML' {
-            $x = Export-SystemPowerReport -FormatXML -OutFile (Join-Path $script:out 'spr.xml') -Duration 1
+        It 'Export-SystemPowerReport XML round-trips through -ReformatXml' {
+            $path = Join-Path -Path $script:out -ChildPath 'spr.xml'
+            $x = Export-SystemPowerReport -FormatXml -OutFile $path -Duration 1
             $x.Extension | Should -Be '.xml'
-            $h = Export-SystemPowerReport -ReformatXML -FilePath $x.FullName
+            $h = Export-SystemPowerReport -ReformatXml -FilePath $x.FullName
             $h.FullName | Should -Be ([IO.Path]::ChangeExtension($x.FullName, '.html'))
             $h.Exists | Should -BeTrue
         }
 
         It 'Export-SystemSleepDiagnostics writes HTML, or fails loudly where Windows deprecated it' {
             try {
-                $f = Export-SystemSleepDiagnostics -OutFile (Join-Path $script:out 'ssd.html') -ErrorAction Stop
+                $path = Join-Path -Path $script:out -ChildPath 'ssd.html'
+                $f = Export-SystemSleepDiagnostics -OutFile $path -ErrorAction Stop
                 $f.Exists | Should -BeTrue
-            }
-            catch {
+            } catch {
                 $_.FullyQualifiedErrorId | Should -BeLike 'ReportNotCreated*'
                 $_.Exception.Message | Should -BeLike '*powercfg said:*'
-                Set-ItResult -Skipped -Because "powercfg /systemsleepdiagnostics is deprecated on this build: $($_.Exception.Message)"
+                $because = "powercfg /systemsleepdiagnostics is deprecated on this build: $($_.Exception.Message)"
+                Set-ItResult -Skipped -Because $because
             }
         }
 
-        It 'Export-SRUMDB writes CSV by default' {
-            $f = Export-SRUMDB -OutFile (Join-Path $script:out 'srum')
+        It 'Export-SrumDb writes CSV by default' {
+            $f = Export-SrumDb -OutFile (Join-Path -Path $script:out -ChildPath 'srum')
             $f.Extension | Should -Be '.csv'
             $f.Exists | Should -BeTrue
         }
 
         It 'Export-EnergyReport writes HTML' {
-            $f = Export-EnergyReport -OutFile (Join-Path $script:out 'energy') -Duration 5
+            $f = Export-EnergyReport -OutFile (Join-Path -Path $script:out -ChildPath 'energy') -Duration 5
             $f.Extension | Should -Be '.html'
             $f.Exists | Should -BeTrue
         }
 
         It 'Export-PowerProvisioningXml writes XML with the given name' {
-            $f = Export-PowerProvisioningXml -OutFile (Join-Path $script:out 'pxml') -Name 'PsPowerCFG.Test' -Version '1.2'
+            $path = Join-Path -Path $script:out -ChildPath 'pxml'
+            $f = Export-PowerProvisioningXml -OutFile $path -Name 'PsPowerCFG.Test' -Version '1.2'
             $f.Extension | Should -Be '.xml'
             $x = [xml][IO.File]::ReadAllText($f.FullName)
             $x.OuterXml | Should -Match 'PsPowerCFG\.Test'
         }
 
         It 'resolves relative paths against $PWD, not the process directory' {
-            Push-Location $script:out
+            Push-Location -Path $script:out
             try {
-                (Export-SystemPowerReport -OutFile 'rel.html' -Duration 1).DirectoryName | Should -Be $script:out.TrimEnd('\')
-            }
-            finally { Pop-Location }
+                $f = Export-SystemPowerReport -OutFile 'rel.html' -Duration 1
+                $f.DirectoryName | Should -Be $script:out.TrimEnd('\')
+            } finally { Pop-Location }
         }
     }
 }
