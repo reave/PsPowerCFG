@@ -1,7 +1,8 @@
 function Get-PowerWakeTimer {
     <#
     .SYNOPSIS
-        Lists active timers that can wake the system from sleep. Equivalent to powercfg /waketimers.
+        Lists active timers that can wake the system from sleep. Equivalent to
+        powercfg /waketimers.
     .DESCRIPTION
         Windows has no public API for enumerating other processes' wake timers,
         so this runs powercfg /waketimers and parses it. Owner type, owner and
@@ -11,6 +12,8 @@ function Get-PowerWakeTimer {
         Path. Requires an elevated session.
     .EXAMPLE
         Get-PowerWakeTimer
+
+        Lists each wake timer with its owner, expiry time and reason.
     .OUTPUTS
         PsPowerCfg.PowerWakeTimer
     #>
@@ -22,6 +25,7 @@ function Get-PowerWakeTimer {
     $stdout = Invoke-PowerCfg -Cmdlet $PSCmdlet -ArgumentList '/waketimers'
 
     $culture = [System.Globalization.CultureInfo]::CurrentCulture
+    $assumeLocal = [System.Globalization.DateTimeStyles]::AssumeLocal
     $current = $null
     foreach ($line in ($stdout -split '\r?\n')) {
         if (-not $line.Trim()) { continue }
@@ -31,7 +35,9 @@ function Get-PowerWakeTimer {
             $owner = $Matches[2]
             $expires = $null
             $dt = [datetime]::MinValue
-            if ([datetime]::TryParse("$($Matches[4]) $($Matches[3])", $culture, [System.Globalization.DateTimeStyles]::AssumeLocal, [ref]$dt)) { $expires = $dt }
+            if ([datetime]::TryParse("$($Matches[4]) $($Matches[3])", $culture, $assumeLocal, [ref]$dt)) {
+                $expires = $dt
+            }
             $current = [pscustomobject]@{
                 PSTypeName = 'PsPowerCfg.PowerWakeTimer'
                 OwnerType  = @{ PROCESS = 'Process'; SERVICE = 'Service'; DRIVER = 'Driver' }[$kind]

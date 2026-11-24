@@ -1,7 +1,8 @@
 function Get-PowerCapability {
     <#
     .SYNOPSIS
-        Reports the sleep states and power hardware the system supports. Equivalent to powercfg /availablesleepstates.
+        Reports the sleep states and power hardware the system supports. Equivalent to
+        powercfg /availablesleepstates.
     .DESCRIPTION
         Calls CallNtPowerInformation(SystemPowerCapabilities) and returns the
         SYSTEM_POWER_CAPABILITIES structure: S1-S3 standby, S0 low power idle
@@ -14,8 +15,12 @@ function Get-PowerCapability {
         reported here.
     .EXAMPLE
         Get-PowerCapability
+
+        Shows every capability flag, such as HibernateSupported and LidPresent.
     .EXAMPLE
         (Get-PowerCapability).StandbyS0LowPowerIdle
+
+        Returns $true on a Modern Standby (S0 low power idle) system.
     .OUTPUTS
         PsPowerCfg.PowerCapabilities
     #>

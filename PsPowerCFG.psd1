@@ -1,9 +1,10 @@
 @{
     RootModule           = 'PsPowerCFG.psm1'
-    ModuleVersion        = '1.5.0'
+    ModuleVersion        = '1.6.0'
     GUID                 = '4c864518-13d1-4a7e-a7e3-7c6080b2e6e8'
     Author               = 'reave'
     Copyright            = '(c) reave. All rights reserved.'
+    # Manifests only allow constant values, so this line stays over the 115-character limit.
     Description          = 'powercfg.exe functionality for Windows PowerShell 5.1 and PowerShell 7, implemented on powrprof.dll and .NET APIs.'
 
     PowerShellVersion    = '5.1'
@@ -33,7 +34,7 @@
         'Set-PowerSecurityDescriptor'
         'Export-SystemPowerReport'
         'Export-SystemSleepDiagnostics'
-        'Export-SRUMDB'
+        'Export-SrumDb'
         'Get-PowerCapability'
         'Get-PowerDevice'
         'Enable-PowerDeviceWake'

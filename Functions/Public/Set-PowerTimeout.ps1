@@ -1,7 +1,8 @@
 function Set-PowerTimeout {
     <#
     .SYNOPSIS
-        Sets monitor, disk, sleep or hibernate timeouts in minutes. Equivalent to powercfg /change.
+        Sets monitor, disk, sleep or hibernate timeouts in minutes. Equivalent to
+        powercfg /change.
     .DESCRIPTION
         Thin wrapper over Set-PowerSetting for the four /change settings:
           Monitor   = SUB_VIDEO\VIDEOIDLE      (monitor-timeout-ac/dc)
@@ -9,37 +10,41 @@ function Set-PowerTimeout {
           Standby   = SUB_SLEEP\STANDBYIDLE    (standby-timeout-ac/dc)
           Hibernate = SUB_SLEEP\HIBERNATEIDLE  (hibernate-timeout-ac/dc)
         0 means never.
-    .PARAMETER Type
-        Monitor, Disk, Standby or Hibernate.
-    .PARAMETER AcMinutes
-        Timeout on AC power, in minutes.
-    .PARAMETER DcMinutes
-        Timeout on battery, in minutes.
-    .PARAMETER Scheme
-        Scheme GUID, alias or name. Default: the active scheme (powercfg /change
-        only ever targets the active scheme).
     .EXAMPLE
         Set-PowerTimeout -Type Monitor -AcMinutes 5
 
         Same as powercfg /change monitor-timeout-ac 5.
     .EXAMPLE
         Set-PowerTimeout -Type Standby -AcMinutes 0 -DcMinutes 15
+
+        Never sleeps on AC; sleeps after 15 minutes on battery.
+    .NOTES
+        -WhatIf and -Confirm are forwarded to Set-PowerSetting, which makes the
+        ShouldProcess call.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '',
+        Justification = 'WhatIf/Confirm are forwarded to Set-PowerSetting, which calls ShouldProcess.')]
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerSetting])]
     param(
+        # Monitor, Disk, Standby or Hibernate.
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Monitor', 'Disk', 'Standby', 'Hibernate')]
         [string]$Type,
 
+        # Timeout on AC power, in minutes.
         [ValidateRange(0, 71582788)]
         [uint32]$AcMinutes,
 
+        # Timeout on battery, in minutes.
         [ValidateRange(0, 71582788)]
         [uint32]$DcMinutes,
 
+        # Scheme GUID, alias or name. Default: the active scheme (powercfg /change
+        # only ever targets the active scheme).
         [string]$Scheme = 'SCHEME_CURRENT',
 
+        # Return the updated setting.
         [switch]$PassThru
     )
 

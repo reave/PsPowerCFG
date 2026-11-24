@@ -8,22 +8,32 @@ function Resolve-OutputPath {
         [System.IO.FileInfo] parameters resolve relative paths against
         [Environment]::CurrentDirectory, which is usually not $PWD. This uses the
         provider path resolver instead.
+    .EXAMPLE
+        $target = Resolve-OutputPath -Cmdlet $PSCmdlet -Path 'reports\sleep' -Extension '.html'
+
+        Returns the full path of reports\sleep.html under the current PowerShell
+        location and creates the reports folder if it is missing.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
+        # The caller's $PSCmdlet, used for its provider path resolver.
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCmdlet]$Cmdlet,
 
+        # Output path as the user typed it. Relative paths resolve against $PWD.
         [Parameter(Mandatory = $true)]
         [string]$Path,
 
+        # Extension to force, with the dot (for example '.html'). Omit to keep the path's own.
         [string]$Extension
     )
 
     $full = $Cmdlet.GetUnresolvedProviderPathFromPSPath($Path)
-    if ($Extension -and -not [string]::Equals([System.IO.Path]::GetExtension($full), $Extension, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Verbose "Changing output extension to $Extension"
+    $currentExtension = [System.IO.Path]::GetExtension($full)
+    $ignoreCase = [System.StringComparison]::OrdinalIgnoreCase
+    if ($Extension -and -not [string]::Equals($currentExtension, $Extension, $ignoreCase)) {
+        Write-Verbose -Message "Changing output extension to $Extension"
         $full = [System.IO.Path]::ChangeExtension($full, $Extension)
     }
 

@@ -11,28 +11,30 @@ function Get-PowerRequestOverride {
         caller as a DWORD bitmask: Display = 1, System = 2, AwayMode = 4,
         Execution = 8 (verified against powercfg on Windows 11 26100). Does not
         need elevation.
-    .PARAMETER CallerType
-        Only return overrides for these caller types.
-    .PARAMETER Name
-        Filter by caller name. Wildcards are supported.
     .EXAMPLE
         Get-PowerRequestOverride
+
+        Lists every override, with the request types Windows ignores for each caller.
     .OUTPUTS
         PsPowerCfg.PowerRequestOverride
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerRequestOverride')]
     param(
+        # Only return overrides for these caller types.
         [ValidateSet('Process', 'Service', 'Driver')]
         [string[]]$CallerType = @('Service', 'Process', 'Driver'),
 
+        # Filter by caller name. Wildcards are supported.
         [SupportsWildcards()]
         [string]$Name = '*'
     )
 
-    $pattern = [System.Management.Automation.WildcardPattern]::new($Name, [System.Management.Automation.WildcardOptions]::IgnoreCase)
+    $ignoreCase = [System.Management.Automation.WildcardOptions]::IgnoreCase
+    $pattern = [System.Management.Automation.WildcardPattern]::new($Name, $ignoreCase)
     foreach ($kind in $CallerType) {
-        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$script:PowerRequestOverrideKey\$kind", $false)
+        $keyPath = "$script:PowerRequestOverrideKey\$kind"
+        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($keyPath, $false)
         if ($null -eq $key) { continue }
         try {
             foreach ($n in $key.GetValueNames()) {

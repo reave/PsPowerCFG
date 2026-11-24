@@ -1,7 +1,8 @@
 function Get-PowerRequest {
     <#
     .SYNOPSIS
-        Lists the application and driver power requests keeping the display or system awake. Equivalent to powercfg /requests.
+        Lists the application and driver power requests keeping the display or system awake.
+        Equivalent to powercfg /requests.
     .DESCRIPTION
         Windows has no public API for enumerating other processes' power
         requests, so this runs powercfg /requests and parses it. The request-type
@@ -10,18 +11,21 @@ function Get-PowerRequest {
         reason text is whatever the caller supplied. Process paths are converted
         from \Device\HarddiskVolumeN form to drive letters in Path; Name keeps
         powercfg's text. Requires an elevated session.
-    .PARAMETER Type
-        Only return requests of these types.
     .EXAMPLE
         Get-PowerRequest
+
+        Lists every active power request, grouped by type as powercfg prints them.
     .EXAMPLE
-        Get-PowerRequest -Type Display, System | Format-Table Type, CallerType, Path, Reason
+        Get-PowerRequest -Type Display, System | Format-Table -Property Type, CallerType, Path, Reason
+
+        Shows only what is keeping the display or the system awake.
     .OUTPUTS
         PsPowerCfg.PowerRequest
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerRequest')]
     param(
+        # Only return requests of these types.
         [ValidateSet('Display', 'System', 'AwayMode', 'Execution', 'PerfBoost', 'ActiveLockScreen')]
         [string[]]$Type
     )

@@ -13,8 +13,12 @@ function Get-PowerBatteryState {
         powercfg /batteryreport.
     .EXAMPLE
         Get-PowerBatteryState
+
+        Shows AC status, remaining and full capacity, charge rate and estimated runtime.
     .EXAMPLE
         if (-not (Get-PowerBatteryState).AcOnLine) { 'On battery' }
+
+        Outputs 'On battery' when the system is not on AC power.
     .OUTPUTS
         PsPowerCfg.PowerBatteryState
     #>

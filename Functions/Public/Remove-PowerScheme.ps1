@@ -10,35 +10,46 @@ function Remove-PowerScheme {
         Built-in Windows schemes (Balanced, High performance, Power saver,
         Ultimate Performance) are refused unless -Force is passed, because the
         only way back is Restore-DefaultPowerScheme.
-    .PARAMETER Guid
-        Scheme GUID(s). Accepts pipeline input from Get-PowerScheme.
-    .PARAMETER Force
-        Allow deleting a built-in Windows scheme. Still prompts unless -Confirm:$false.
     .EXAMPLE
         Get-PowerScheme -Name 'Test*' | Remove-PowerScheme -Confirm:$false
+
+        Deletes every scheme whose name starts with Test, without prompting. Built-in
+        and active schemes are still refused.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param(
-        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        # Scheme GUID(s). Accepts pipeline input from Get-PowerScheme.
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true)]
         [Alias('ID', 'SchemeGuid')]
         [guid[]]$Guid,
 
+        # Allow deleting a built-in Windows scheme. Still prompts unless -Confirm:$false.
         [switch]$Force
     )
 
     process {
         foreach ($g in $Guid) {
             if ($g -eq [PsPowerCfg.PowerApi]::GetActiveScheme()) {
-                $exception = [System.InvalidOperationException]::new("Power scheme $g is active and cannot be deleted. Activate another scheme first.")
+                $exception = [System.InvalidOperationException]::new(
+                    "Power scheme $g is active and cannot be deleted. Activate another scheme first.")
                 $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
-                        $exception, 'PowerSchemeIsActive', [System.Management.Automation.ErrorCategory]::InvalidOperation, $g))
+                        $exception,
+                        'PowerSchemeIsActive',
+                        [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                        $g))
                 continue
             }
 
             if (-not $Force -and $script:BuiltInPowerSchemes -contains $g) {
-                $exception = [System.InvalidOperationException]::new("Power scheme $g is a built-in Windows scheme. Pass -Force to delete it; Restore-DefaultPowerScheme brings it back.")
+                $exception = [System.InvalidOperationException]::new(
+                    ("Power scheme $g is a built-in Windows scheme. Pass -Force to delete it; " +
+                    'Restore-DefaultPowerScheme brings it back.'))
                 $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
-                        $exception, 'PowerSchemeIsBuiltIn', [System.Management.Automation.ErrorCategory]::InvalidOperation, $g))
+                        $exception,
+                        'PowerSchemeIsBuiltIn',
+                        [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                        $g))
                 continue
             }
 
@@ -47,7 +58,8 @@ function Remove-PowerScheme {
             if (-not $PSCmdlet.ShouldProcess($label, 'Delete power scheme')) { continue }
             $r = [PsPowerCfg.Safe]::DeleteScheme($g)
             if ($r.Failed) {
-                $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'RemovePowerSchemeFailed' -TargetObject $g))
+                $record = New-NativeErrorRecord -Result $r -ErrorId 'RemovePowerSchemeFailed' -TargetObject $g
+                $PSCmdlet.WriteError($record)
             }
         }
     }

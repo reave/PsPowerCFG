@@ -1,18 +1,13 @@
 function Set-PowerSettingAttribute {
     <#
     .SYNOPSIS
-        Shows or hides a power setting in Control Panel and powercfg /q. Equivalent to powercfg /attributes.
+        Shows or hides a power setting in Control Panel and powercfg /q. Equivalent to
+        powercfg /attributes.
     .DESCRIPTION
         Reads the attributes with PowerReadSettingAttributes and sets or clears
         ATTRIBUTE_HIDE (0x1) with PowerWriteSettingAttributes. Other attribute bits
         are preserved. Requires an elevated session. Read the current state from
         Get-PowerSetting -IncludeHidden (IsHidden, Attributes).
-    .PARAMETER Subgroup
-        Subgroup GUID or alias. Found automatically when omitted.
-    .PARAMETER Setting
-        Setting GUID or alias.
-    .PARAMETER Hidden
-        $true hides the setting (+ATTRIB_HIDE), $false shows it (-ATTRIB_HIDE).
     .EXAMPLE
         Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $false
 
@@ -20,14 +15,17 @@ function Set-PowerSettingAttribute {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
+        # Subgroup GUID or alias. Found automatically when omitted.
         [Parameter(ValueFromPipelineByPropertyName = $true)]
         [Alias('SubgroupGuid')]
         [string]$Subgroup,
 
+        # Setting GUID or alias.
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipelineByPropertyName = $true)]
         [Alias('Guid', 'SettingGuid')]
         [string]$Setting,
 
+        # $true hides the setting (+ATTRIB_HIDE), $false shows it (-ATTRIB_HIDE).
         [Parameter(Mandatory = $true)]
         [bool]$Hidden
     )
@@ -38,18 +36,28 @@ function Set-PowerSettingAttribute {
 
     process {
         $setGuid = Resolve-PowerGuid -Cmdlet $PSCmdlet -Value $Setting -Kind Setting
-        $subGuid = if ($Subgroup) { Resolve-PowerGuid -Cmdlet $PSCmdlet -Value $Subgroup -Kind Subgroup } else { [PsPowerCfg.PowerApi]::FindSubgroup([PsPowerCfg.PowerApi]::GetActiveScheme(), $setGuid) }
+        if ($Subgroup) {
+            $subGuid = Resolve-PowerGuid -Cmdlet $PSCmdlet -Value $Subgroup -Kind Subgroup
+        } else {
+            $activeScheme = [PsPowerCfg.PowerApi]::GetActiveScheme()
+            $subGuid = [PsPowerCfg.PowerApi]::FindSubgroup($activeScheme, $setGuid)
+        }
         if ($null -eq $subGuid) {
-            $exception = [System.Management.Automation.ItemNotFoundException]::new("Setting $Setting was not found; pass -Subgroup.")
+            $exception = [System.Management.Automation.ItemNotFoundException]::new(
+                "Setting $Setting was not found; pass -Subgroup.")
             $PSCmdlet.WriteError([System.Management.Automation.ErrorRecord]::new(
-                    $exception, 'PowerSettingNotFound', [System.Management.Automation.ErrorCategory]::ObjectNotFound, $Setting))
+                    $exception,
+                    'PowerSettingNotFound',
+                    [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                    $Setting))
             return
         }
         $subGuid = [guid]$subGuid
 
         $r = [PsPowerCfg.Safe]::ReadSettingAttributes($subGuid, $setGuid)
         if ($r.Failed) {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'PowerSettingNotFound' -TargetObject $Setting))
+            $record = New-NativeErrorRecord -Result $r -ErrorId 'PowerSettingNotFound' -TargetObject $Setting
+            $PSCmdlet.WriteError($record)
             return
         }
         $attrs = [uint32]$r.Value
@@ -59,7 +67,9 @@ function Set-PowerSettingAttribute {
         if (-not $PSCmdlet.ShouldProcess("$setGuid", "$verb power setting")) { return }
         $r = [PsPowerCfg.Safe]::WriteSettingAttributes($subGuid, $setGuid, [uint32]$new)
         if ($r.Failed) {
-            $PSCmdlet.WriteError((New-NativeErrorRecord -Result $r -ErrorId 'SetPowerSettingAttributeFailed' -TargetObject $setGuid))
+            $errorId = 'SetPowerSettingAttributeFailed'
+            $record = New-NativeErrorRecord -Result $r -ErrorId $errorId -TargetObject $setGuid
+            $PSCmdlet.WriteError($record)
         }
     }
 }
