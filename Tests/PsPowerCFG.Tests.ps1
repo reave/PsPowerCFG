@@ -81,30 +81,13 @@ Describe 'Module' {
 
 Describe 'Code style' -Skip:(-not $hasAnalyzer) {
     It 'passes PSScriptAnalyzer with the repository settings' {
-        $root = Join-Path -Path $PSScriptRoot -ChildPath '..'
-        $settings = Join-Path -Path $root -ChildPath 'PSScriptAnalyzerSettings.psd1'
-        $analyzerErrors = $null
-        $analyzerParams = @{
-            Path          = $root
-            Recurse       = $true
-            Settings      = $settings
-            ErrorVariable = 'analyzerErrors'
-            ErrorAction   = 'SilentlyContinue'
-        }
-        $findings = Invoke-ScriptAnalyzer @analyzerParams
-        # The manifest Description must be one constant string, so its line stays long.
-        $findings = @($findings | Where-Object -FilterScript {
-                -not ($_.RuleName -eq 'PSAvoidLongLines' -and $_.ScriptName -eq 'PsPowerCFG.psd1')
-            })
-        $report = foreach ($f in $findings) { '{0}:{1} {2}' -f $f.ScriptName, $f.Line, $f.RuleName }
+        # A separate process of the same edition: inside Pester, with the module imported, the
+        # analyzer's own command lookup fails intermittently.
+        $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        $check = Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-StyleCheck.ps1'
+        $report = & $exe -NoProfile -File $check 2>&1 | ForEach-Object -Process { "$_" }
         $report | Should -BeNullOrEmpty
-        # PSScriptAnalyzer 1.25 on PowerShell 7.7 sometimes fails inside its own command lookup
-        # (NullReferenceException in PSProvideCommentHelp, or "Get-Command is not recognized").
-        # The rule that failed checked nothing, so the result is inconclusive rather than a pass.
-        if ($analyzerErrors) {
-            $crashes = foreach ($e in $analyzerErrors) { '{0} ({1})' -f $e, $e.TargetObject }
-            Set-ItResult -Inconclusive -Because ('analyzer errors: ' + ($crashes -join '; '))
-        }
+        $LASTEXITCODE | Should -Be 0
     }
 }
 

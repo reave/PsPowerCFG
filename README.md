@@ -123,6 +123,9 @@ They restore the original active scheme and delete only schemes whose name start
 
 ## Contributing
 
-Code and documentation follow the rules in [Code and documentation style](STYLE.md). Run
-`Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1` before you
-submit a change.
+Code and documentation follow the rules in [Code and documentation style](STYLE.md). Before you
+submit a change, run the style check. No output means the code is clean.
+
+```powershell
+pwsh.exe -NoProfile -File .\Tests\Invoke-StyleCheck.ps1
+```

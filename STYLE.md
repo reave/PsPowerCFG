@@ -12,11 +12,12 @@ Where either guide conflicts with the project goals (Windows PowerShell 5.1 and 
 speed, P/Invoke and .NET over cmdlets, no behavior regressions), the goals win. Those cases are
 listed under [Deviations](#deviations).
 
-`PSScriptAnalyzerSettings.psd1` enforces the mechanical rules. The `Code style` Pester test runs it
-when **PSScriptAnalyzer** is installed:
+`PSScriptAnalyzerSettings.psd1` enforces the mechanical rules. `Tests/Invoke-StyleCheck.ps1` runs
+the analyzer with those settings and works around intermittent analyzer crashes. The `Code style`
+Pester test runs it when **PSScriptAnalyzer** is installed:
 
 ```powershell
-Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
+pwsh.exe -NoProfile -File .\Tests\Invoke-StyleCheck.ps1
 ```
 
 ## Rules from finalized guide pages
