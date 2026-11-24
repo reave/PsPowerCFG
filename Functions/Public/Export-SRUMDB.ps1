@@ -1,32 +1,32 @@
 function Export-SRUMDB {
     <#
     .SYNOPSIS
-    Dumps SRUM energy estimation data to CSV or XML. Equivalent to powercfg /srumutil.
+        Dumps SRUM energy estimation data to CSV or XML. Equivalent to powercfg /srumutil.
     .DESCRIPTION
-    Exports the Energy Estimation data that the System Resource Usage Monitor
-    (SRUM) keeps in %SystemRoot%\System32\sru\SRUDB.dat.
+        Exports the Energy Estimation data that the System Resource Usage Monitor
+        (SRUM) keeps in %SystemRoot%\System32\sru\SRUDB.dat.
 
-    There is no public API for this data: SRUDB.dat is an ESE database held
-    open by the Diagnostic Policy Service, so reading it natively would need
-    esent.dll interop plus a volume shadow copy. This calls powercfg.exe with
-    output captured in memory and the exit code checked. Requires an elevated
-    session.
+        There is no public API for this data: SRUDB.dat is an ESE database held
+        open by the Diagnostic Policy Service, so reading it natively would need
+        esent.dll interop plus a volume shadow copy. This calls powercfg.exe with
+        output captured in memory and the exit code checked. Requires an elevated
+        session.
     .PARAMETER OutFile
-    Output path. Relative paths resolve against the current PowerShell
-    location. The extension is corrected to match -Format.
-    Default: .\srumutil.csv (or .xml).
+        Output path. Relative paths resolve against the current PowerShell
+        location. The extension is corrected to match -Format.
+        Default: .\srumutil.csv (or .xml).
     .PARAMETER Format
-    Csv (default) or Xml.
+        Csv (default) or Xml.
     .PARAMETER FormatXML
-    Legacy switch, same as -Format Xml.
+        Legacy switch, same as -Format Xml.
     .PARAMETER FormatCSV
-    Legacy switch, same as -Format Csv.
+        Legacy switch, same as -Format Csv.
     .EXAMPLE
-    Export-SRUMDB -OutFile C:\Temp\srum.csv
+        Export-SRUMDB -OutFile C:\Temp\srum.csv
     .EXAMPLE
-    Export-SRUMDB -Format Xml
+        Export-SRUMDB -Format Xml
     .OUTPUTS
-    System.IO.FileInfo
+        System.IO.FileInfo
     #>
     [CmdletBinding(DefaultParameterSetName = 'Format')]
     [OutputType([System.IO.FileInfo])]

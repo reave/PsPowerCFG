@@ -1,21 +1,21 @@
 function Remove-PowerScheme {
     <#
     .SYNOPSIS
-    Deletes a power scheme. Equivalent to powercfg /delete.
+        Deletes a power scheme. Equivalent to powercfg /delete.
     .DESCRIPTION
-    Calls PowerDeleteScheme. The active scheme cannot be deleted; activate a
-    different scheme first. Prompts for confirmation by default (ConfirmImpact
-    High).
+        Calls PowerDeleteScheme. The active scheme cannot be deleted; activate a
+        different scheme first. Prompts for confirmation by default (ConfirmImpact
+        High).
 
-    Built-in Windows schemes (Balanced, High performance, Power saver,
-    Ultimate Performance) are refused unless -Force is passed, because the
-    only way back is Restore-DefaultPowerScheme.
+        Built-in Windows schemes (Balanced, High performance, Power saver,
+        Ultimate Performance) are refused unless -Force is passed, because the
+        only way back is Restore-DefaultPowerScheme.
     .PARAMETER Guid
-    Scheme GUID(s). Accepts pipeline input from Get-PowerScheme.
+        Scheme GUID(s). Accepts pipeline input from Get-PowerScheme.
     .PARAMETER Force
-    Allow deleting a built-in Windows scheme. Still prompts unless -Confirm:$false.
+        Allow deleting a built-in Windows scheme. Still prompts unless -Confirm:$false.
     .EXAMPLE
-    Get-PowerScheme -Name 'Test*' | Remove-PowerScheme -Confirm:$false
+        Get-PowerScheme -Name 'Test*' | Remove-PowerScheme -Confirm:$false
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param(

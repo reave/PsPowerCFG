@@ -1,15 +1,15 @@
 function Invoke-PowerCfg {
     <#
     .SYNOPSIS
-    Runs powercfg.exe in-process-launched mode with stdout/stderr captured in
-    memory. Used only for options that have no public Win32 API.
+        Runs powercfg.exe in-process-launched mode with stdout/stderr captured in
+        memory. Used only for options that have no public Win32 API.
     .DESCRIPTION
-    Uses System.Diagnostics.Process directly instead of Start-Process: no temp
-    files, no shared file names across concurrent runs, and the exit code and
-    error text are always surfaced.
+        Uses System.Diagnostics.Process directly instead of Start-Process: no temp
+        files, no shared file names across concurrent runs, and the exit code and
+        error text are always surfaced.
 
-    Throws a terminating error in the calling cmdlet on a non-zero exit code.
-    Returns stdout as a string.
+        Throws a terminating error in the calling cmdlet on a non-zero exit code.
+        Returns stdout as a string.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -60,8 +60,7 @@ function Invoke-PowerCfg {
         $process.WaitForExit()
         $stderr = $stderrTask.GetAwaiter().GetResult()
         $exitCode = $process.ExitCode
-    }
-    finally {
+    } finally {
         $process.Dispose()
     }
 

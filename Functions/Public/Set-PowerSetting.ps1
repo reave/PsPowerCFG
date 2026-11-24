@@ -1,37 +1,37 @@
 function Set-PowerSetting {
     <#
     .SYNOPSIS
-    Sets a power setting's AC and/or DC value. Equivalent to powercfg /setacvalueindex and /setdcvalueindex.
+        Sets a power setting's AC and/or DC value. Equivalent to powercfg /setacvalueindex and /setdcvalueindex.
     .DESCRIPTION
-    Calls PowerWriteACValueIndex / PowerWriteDCValueIndex. When the scheme is
-    the active one, PowerSetActiveScheme is called afterwards so the change
-    takes effect immediately (powercfg does the same).
+        Calls PowerWriteACValueIndex / PowerWriteDCValueIndex. When the scheme is
+        the active one, PowerSetActiveScheme is called afterwards so the change
+        takes effect immediately (powercfg does the same).
 
-    Values are validated against the setting's range (Minimum..Maximum) or its
-    list of possible values. -Force skips that check.
+        Values are validated against the setting's range (Minimum..Maximum) or its
+        list of possible values. -Force skips that check.
 
-    Warns when Group Policy overrides the setting, because the written value
-    will not take effect while the policy applies.
+        Warns when Group Policy overrides the setting, because the written value
+        will not take effect while the policy applies.
     .PARAMETER Scheme
-    Scheme GUID, alias or name. Default: the active scheme.
+        Scheme GUID, alias or name. Default: the active scheme.
     .PARAMETER Subgroup
-    Subgroup GUID or alias. Found automatically when omitted.
+        Subgroup GUID or alias. Found automatically when omitted.
     .PARAMETER Setting
-    Setting GUID or alias.
+        Setting GUID or alias.
     .PARAMETER AcValue
-    Value (range settings) or possible-value index (index settings) on AC power.
+        Value (range settings) or possible-value index (index settings) on AC power.
     .PARAMETER DcValue
-    Same, on battery.
+        Same, on battery.
     .PARAMETER Force
-    Skip range/possible-value validation.
+        Skip range/possible-value validation.
     .PARAMETER PassThru
-    Return the updated setting.
+        Return the updated setting.
     .EXAMPLE
-    Set-PowerSetting -Setting LIDACTION -AcValue 0 -DcValue 1
+        Set-PowerSetting -Setting LIDACTION -AcValue 0 -DcValue 1
 
-    Lid close: do nothing on AC, sleep on battery.
+        Lid close: do nothing on AC, sleep on battery.
     .EXAMPLE
-    Get-PowerSetting -Setting PROCTHROTTLEMAX | Set-PowerSetting -DcValue 80
+        Get-PowerSetting -Setting PROCTHROTTLEMAX | Set-PowerSetting -DcValue 80
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerSetting])]
@@ -93,8 +93,7 @@ function Set-PowerSetting {
                     if (($null -ne $current.Minimum -and $v -lt $current.Minimum) -or ($null -ne $current.Maximum -and $v -gt $current.Maximum)) {
                         $bad = "must be between $($current.Minimum) and $($current.Maximum) $($current.Units)"
                     }
-                }
-                elseif ($current.PossibleValues.Count -and $v -ge $current.PossibleValues.Count) {
+                } elseif ($current.PossibleValues.Count -and $v -ge $current.PossibleValues.Count) {
                     $bad = 'must be one of: ' + (($current.PossibleValues | ForEach-Object { "$($_.Index) ($($_.Name))" }) -join ', ')
                 }
                 if ($bad) {

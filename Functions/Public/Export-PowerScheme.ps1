@@ -1,22 +1,22 @@
 function Export-PowerScheme {
     <#
     .SYNOPSIS
-    Exports a power scheme to a .pow file. Equivalent to powercfg /export.
+        Exports a power scheme to a .pow file. Equivalent to powercfg /export.
     .DESCRIPTION
-    Windows has no public API that writes the .pow format (PowerImportPowerScheme
-    exists, an export counterpart does not), so this runs powercfg.exe /export
-    with output captured in memory and the exit code checked. The file can be
-    re-imported with Import-PowerScheme or powercfg /import. Requires an
-    elevated session (powercfg /export fails with 0x522 otherwise).
+        Windows has no public API that writes the .pow format (PowerImportPowerScheme
+        exists, an export counterpart does not), so this runs powercfg.exe /export
+        with output captured in memory and the exit code checked. The file can be
+        re-imported with Import-PowerScheme or powercfg /import. Requires an
+        elevated session (powercfg /export fails with 0x522 otherwise).
     .PARAMETER Guid
-    Scheme GUID. Accepts pipeline input from Get-PowerScheme.
+        Scheme GUID. Accepts pipeline input from Get-PowerScheme.
     .PARAMETER Path
-    Destination file. Relative paths resolve against the current PowerShell
-    location. Default: .\<scheme name>.pow
+        Destination file. Relative paths resolve against the current PowerShell
+        location. Default: .\<scheme name>.pow
     .EXAMPLE
-    Get-ActivePowerScheme | Export-PowerScheme -Path C:\Temp\active.pow
+        Get-ActivePowerScheme | Export-PowerScheme -Path C:\Temp\active.pow
     .OUTPUTS
-    System.IO.FileInfo
+        System.IO.FileInfo
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([System.IO.FileInfo])]

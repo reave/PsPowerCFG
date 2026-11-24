@@ -1,19 +1,19 @@
 function Rename-PowerScheme {
     <#
     .SYNOPSIS
-    Changes a power scheme's name and optionally its description. Equivalent to powercfg /changename.
+        Changes a power scheme's name and optionally its description. Equivalent to powercfg /changename.
     .PARAMETER Guid
-    Scheme GUID. Accepts pipeline input from Get-PowerScheme.
+        Scheme GUID. Accepts pipeline input from Get-PowerScheme.
     .PARAMETER NewName
-    New friendly name.
+        New friendly name.
     .PARAMETER Description
-    New description. Left unchanged when omitted.
+        New description. Left unchanged when omitted.
     .PARAMETER PassThru
-    Return the updated scheme.
+        Return the updated scheme.
     .EXAMPLE
-    Rename-PowerScheme -Guid 381b4222-f694-41f0-9685-ff5bb260df2e -NewName 'Customized Balanced'
+        Rename-PowerScheme -Guid 381b4222-f694-41f0-9685-ff5bb260df2e -NewName 'Customized Balanced'
     .OUTPUTS
-    None, or PsPowerCfg.PowerScheme with -PassThru.
+        None, or PsPowerCfg.PowerScheme with -PassThru.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerScheme])]

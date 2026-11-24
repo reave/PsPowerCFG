@@ -1,10 +1,10 @@
 function Invoke-PowerCfgReport {
     <#
     .SYNOPSIS
-    Shared implementation for the powercfg report options that have no public
-    API (/systempowerreport, /systemsleepdiagnostics, /batteryreport, ...).
+        Shared implementation for the powercfg report options that have no public
+        API (/systempowerreport, /systemsleepdiagnostics, /batteryreport, ...).
     .OUTPUTS
-    System.IO.FileInfo for the generated report.
+        System.IO.FileInfo for the generated report.
     #>
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo])]
@@ -40,8 +40,7 @@ function Invoke-PowerCfgReport {
         if (-not $OutFile) { $OutFile = [System.IO.Path]::ChangeExtension($source, '.html') }
         $target = Resolve-OutputPath -Cmdlet $Cmdlet -Path $OutFile -Extension '.html'
         $arguments = @("/$Option", '/transformxml', $source, '/output', $target)
-    }
-    else {
+    } else {
         $extension = if ($Xml) { '.xml' } else { '.html' }
         if (-not $OutFile) { $OutFile = $DefaultName + $extension }
         $target = Resolve-OutputPath -Cmdlet $Cmdlet -Path $OutFile -Extension $extension

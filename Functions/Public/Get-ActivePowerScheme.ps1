@@ -1,15 +1,15 @@
 function Get-ActivePowerScheme {
     <#
     .SYNOPSIS
-    Gets the active power scheme. Equivalent to powercfg /getactivescheme.
+        Gets the active power scheme. Equivalent to powercfg /getactivescheme.
     .DESCRIPTION
-    Calls PowerGetActiveScheme in powrprof.dll directly.
+        Calls PowerGetActiveScheme in powrprof.dll directly.
     .EXAMPLE
-    Get-ActivePowerScheme
+        Get-ActivePowerScheme
     .EXAMPLE
-    (Get-ActivePowerScheme).Guid
+        (Get-ActivePowerScheme).Guid
     .OUTPUTS
-    PsPowerCfg.PowerScheme
+        PsPowerCfg.PowerScheme
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerScheme])]

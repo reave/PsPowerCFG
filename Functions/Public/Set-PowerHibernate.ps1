@@ -1,36 +1,36 @@
 function Set-PowerHibernate {
     <#
     .SYNOPSIS
-    Turns hibernate on or off, or sets the hiberfile size or type. Equivalent to powercfg /hibernate.
+        Turns hibernate on or off, or sets the hiberfile size or type. Equivalent to powercfg /hibernate.
     .DESCRIPTION
-    Runs powercfg /hibernate. This is a wrapper on purpose: the one public
-    API, CallNtPowerInformation(SystemReserveHiberFile), only creates or
-    deletes hiberfil.sys. powercfg also updates HibernateEnabled, the size
-    and type registry values and fast startup, and Microsoft documents those
-    values only through powercfg. Doing it by hand risks a state powercfg
-    itself would not produce.
+        Runs powercfg /hibernate. This is a wrapper on purpose: the one public
+        API, CallNtPowerInformation(SystemReserveHiberFile), only creates or
+        deletes hiberfil.sys. powercfg also updates HibernateEnabled, the size
+        and type registry values and fast startup, and Microsoft documents those
+        values only through powercfg. Doing it by hand risks a state powercfg
+        itself would not produce.
 
-    Turning hibernate off deletes hiberfil.sys and disables fast startup and
-    hybrid sleep. Requires an elevated session.
+        Turning hibernate off deletes hiberfil.sys and disables fast startup and
+        hybrid sleep. Requires an elevated session.
     .PARAMETER Enable
-    powercfg /hibernate on.
+        powercfg /hibernate on.
     .PARAMETER Disable
-    powercfg /hibernate off.
+        powercfg /hibernate off.
     .PARAMETER SizePercent
-    powercfg /hibernate /size: hiberfile size as a percentage of RAM. 0 lets
-    Windows manage the size, which a Reduced hiberfile needs. Also turns
-    hibernate on.
+        powercfg /hibernate /size: hiberfile size as a percentage of RAM. 0 lets
+        Windows manage the size, which a Reduced hiberfile needs. Also turns
+        hibernate on.
     .PARAMETER Type
-    powercfg /hibernate /type: Full, or Reduced (enough for fast startup
-    only).
+        powercfg /hibernate /type: Full, or Reduced (enough for fast startup
+        only).
     .PARAMETER PassThru
-    Return Get-PowerHibernate after the change.
+        Return Get-PowerHibernate after the change.
     .EXAMPLE
-    Set-PowerHibernate -Disable
+        Set-PowerHibernate -Disable
     .EXAMPLE
-    Set-PowerHibernate -SizePercent 0; Set-PowerHibernate -Type Reduced
+        Set-PowerHibernate -SizePercent 0; Set-PowerHibernate -Type Reduced
     .OUTPUTS
-    PsPowerCfg.PowerHibernate
+        PsPowerCfg.PowerHibernate
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'Enable')]
     [OutputType('PsPowerCfg.PowerHibernate')]

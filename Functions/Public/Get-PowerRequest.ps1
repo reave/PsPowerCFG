@@ -1,23 +1,23 @@
 function Get-PowerRequest {
     <#
     .SYNOPSIS
-    Lists the application and driver power requests keeping the display or system awake. Equivalent to powercfg /requests.
+        Lists the application and driver power requests keeping the display or system awake. Equivalent to powercfg /requests.
     .DESCRIPTION
-    Windows has no public API for enumerating other processes' power
-    requests, so this runs powercfg /requests and parses it. The request-type
-    headers (DISPLAY:, SYSTEM:, ...) and the [PROCESS]/[SERVICE]/[DRIVER]
-    tags are not translated, so parsing works in any display language; the
-    reason text is whatever the caller supplied. Process paths are converted
-    from \Device\HarddiskVolumeN form to drive letters in Path; Name keeps
-    powercfg's text. Requires an elevated session.
+        Windows has no public API for enumerating other processes' power
+        requests, so this runs powercfg /requests and parses it. The request-type
+        headers (DISPLAY:, SYSTEM:, ...) and the [PROCESS]/[SERVICE]/[DRIVER]
+        tags are not translated, so parsing works in any display language; the
+        reason text is whatever the caller supplied. Process paths are converted
+        from \Device\HarddiskVolumeN form to drive letters in Path; Name keeps
+        powercfg's text. Requires an elevated session.
     .PARAMETER Type
-    Only return requests of these types.
+        Only return requests of these types.
     .EXAMPLE
-    Get-PowerRequest
+        Get-PowerRequest
     .EXAMPLE
-    Get-PowerRequest -Type Display, System | Format-Table Type, CallerType, Path, Reason
+        Get-PowerRequest -Type Display, System | Format-Table Type, CallerType, Path, Reason
     .OUTPUTS
-    PsPowerCfg.PowerRequest
+        PsPowerCfg.PowerRequest
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerRequest')]

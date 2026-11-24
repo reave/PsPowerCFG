@@ -1,19 +1,19 @@
 function Get-PowerSecurityDescriptor {
     <#
     .SYNOPSIS
-    Gets the SDDL security descriptor of a power scheme, setting or action. Equivalent to powercfg /getsecuritydescriptor.
+        Gets the SDDL security descriptor of a power scheme, setting or action. Equivalent to powercfg /getsecuritydescriptor.
     .DESCRIPTION
-    Calls PowerReadSecurityDescriptor.
+        Calls PowerReadSecurityDescriptor.
     .PARAMETER Guid
-    Scheme or setting GUID, or an alias. Accepts Guid from Get-PowerScheme.
+        Scheme or setting GUID, or an alias. Accepts Guid from Get-PowerScheme.
     .PARAMETER Action
-    ActionSetActive, ActionCreate or ActionDefault.
+        ActionSetActive, ActionCreate or ActionDefault.
     .EXAMPLE
-    Get-PowerSecurityDescriptor -Action ActionSetActive
+        Get-PowerSecurityDescriptor -Action ActionSetActive
     .EXAMPLE
-    Get-PowerScheme | Get-PowerSecurityDescriptor
+        Get-PowerScheme | Get-PowerSecurityDescriptor
     .OUTPUTS
-    PSCustomObject with Target and Sddl.
+        PSCustomObject with Target and Sddl.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Guid')]
     param(

@@ -1,17 +1,17 @@
 function Remove-PowerRequestOverride {
     <#
     .SYNOPSIS
-    Removes a power request override. Equivalent to powercfg /requestsoverride <type> <name> with no request types.
+        Removes a power request override. Equivalent to powercfg /requestsoverride <type> <name> with no request types.
     .DESCRIPTION
-    Runs powercfg /requestsoverride for the caller with no request types,
-    which deletes its override, then confirms the registry value is gone.
-    Requires an elevated session.
+        Runs powercfg /requestsoverride for the caller with no request types,
+        which deletes its override, then confirms the registry value is gone.
+        Requires an elevated session.
     .PARAMETER CallerType
-    Process, Service or Driver.
+        Process, Service or Driver.
     .PARAMETER Name
-    The caller name, as Get-PowerRequestOverride shows it.
+        The caller name, as Get-PowerRequestOverride shows it.
     .EXAMPLE
-    Get-PowerRequestOverride -Name wmplayer.exe | Remove-PowerRequestOverride
+        Get-PowerRequestOverride -Name wmplayer.exe | Remove-PowerRequestOverride
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param(

@@ -1,8 +1,8 @@
 function New-NativeErrorRecord {
     <#
     .SYNOPSIS
-    Turns an exception from the native layer into an ErrorRecord with a
-    category that matches the Win32 error (access denied, not found, ...).
+        Turns an exception from the native layer into an ErrorRecord with a
+        category that matches the Win32 error (access denied, not found, ...).
     #>
     [CmdletBinding(DefaultParameterSetName = 'Result')]
     [OutputType([System.Management.Automation.ErrorRecord])]

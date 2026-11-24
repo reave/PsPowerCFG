@@ -25,8 +25,7 @@ function Initialize-PsPowerCfgNative {
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($source))
-    }
-    finally {
+    } finally {
         $sha.Dispose()
     }
     $hash = ([System.BitConverter]::ToString($hashBytes, 0, 8)).Replace('-', '').ToLowerInvariant()
@@ -54,8 +53,7 @@ function Initialize-PsPowerCfgNative {
             $dllName = 'PsPowerCfg.Native.{0}.{1}{2}.{3}.dll' -f $hash, $edition, $clr.Major, $clr.Minor
             $dllPath = [System.IO.Path]::Combine($cacheDir, $dllName)
         }
-    }
-    catch {
+    } catch {
         Write-Verbose "PsPowerCFG: native cache unavailable: $($_.Exception.Message)"
         $dllPath = $null
     }
@@ -70,8 +68,7 @@ function Initialize-PsPowerCfgNative {
                 Add-Type -TypeDefinition $source -OutputAssembly $tmp -OutputType Library -ErrorAction Stop
                 try {
                     [System.IO.File]::Move($tmp, $dllPath)
-                }
-                catch {
+                } catch {
                     # Another process won the race; use theirs.
                     try { [System.IO.File]::Delete($tmp) } catch { Write-Verbose $_.Exception.Message }
                 }
@@ -89,8 +86,7 @@ function Initialize-PsPowerCfgNative {
                     try { [System.IO.File]::Delete($stale) } catch { Write-Verbose "PsPowerCFG: stale cache in use: $stale" }
                 }
             }
-        }
-        catch {
+        } catch {
             Write-Verbose "PsPowerCFG: cached native load failed, compiling in memory: $($_.Exception.Message)"
         }
     }

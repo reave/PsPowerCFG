@@ -1,18 +1,18 @@
 function Remove-PowerSetting {
     <#
     .SYNOPSIS
-    Deletes a power setting definition. Equivalent to powercfg /deletesetting.
+        Deletes a power setting definition. Equivalent to powercfg /deletesetting.
     .DESCRIPTION
-    Calls PowerRemovePowerSetting. This removes the setting from EVERY scheme
-    and is meant for settings that drivers or OEM tools registered. Windows'
-    own settings (anything Get-PowerAlias knows) are refused unless -Force.
-    Requires an elevated session. Prompts for confirmation (ConfirmImpact High).
+        Calls PowerRemovePowerSetting. This removes the setting from EVERY scheme
+        and is meant for settings that drivers or OEM tools registered. Windows'
+        own settings (anything Get-PowerAlias knows) are refused unless -Force.
+        Requires an elevated session. Prompts for confirmation (ConfirmImpact High).
     .PARAMETER Subgroup
-    Subgroup GUID or alias.
+        Subgroup GUID or alias.
     .PARAMETER Setting
-    Setting GUID or alias.
+        Setting GUID or alias.
     .PARAMETER Force
-    Allow removing a built-in Windows setting.
+        Allow removing a built-in Windows setting.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param(

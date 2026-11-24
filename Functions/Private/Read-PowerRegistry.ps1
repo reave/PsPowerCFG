@@ -1,8 +1,8 @@
 function Read-PowerRegistry {
     <#
     .SYNOPSIS
-    Reads named values under an HKLM key into a hashtable; missing values and
-    a missing key come back as $null. Uses Microsoft.Win32.Registry directly.
+        Reads named values under an HKLM key into a hashtable; missing values and
+        a missing key come back as $null. Uses Microsoft.Win32.Registry directly.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -20,8 +20,7 @@ function Read-PowerRegistry {
     if ($null -eq $key) { return $values }
     try {
         foreach ($n in $Name) { $values[$n] = $key.GetValue($n, $null) }
-    }
-    finally {
+    } finally {
         $key.Dispose()
     }
     $values

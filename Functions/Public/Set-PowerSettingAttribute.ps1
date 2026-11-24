@@ -1,22 +1,22 @@
 function Set-PowerSettingAttribute {
     <#
     .SYNOPSIS
-    Shows or hides a power setting in Control Panel and powercfg /q. Equivalent to powercfg /attributes.
+        Shows or hides a power setting in Control Panel and powercfg /q. Equivalent to powercfg /attributes.
     .DESCRIPTION
-    Reads the attributes with PowerReadSettingAttributes and sets or clears
-    ATTRIBUTE_HIDE (0x1) with PowerWriteSettingAttributes. Other attribute bits
-    are preserved. Requires an elevated session. Read the current state from
-    Get-PowerSetting -IncludeHidden (IsHidden, Attributes).
+        Reads the attributes with PowerReadSettingAttributes and sets or clears
+        ATTRIBUTE_HIDE (0x1) with PowerWriteSettingAttributes. Other attribute bits
+        are preserved. Requires an elevated session. Read the current state from
+        Get-PowerSetting -IncludeHidden (IsHidden, Attributes).
     .PARAMETER Subgroup
-    Subgroup GUID or alias. Found automatically when omitted.
+        Subgroup GUID or alias. Found automatically when omitted.
     .PARAMETER Setting
-    Setting GUID or alias.
+        Setting GUID or alias.
     .PARAMETER Hidden
-    $true hides the setting (+ATTRIB_HIDE), $false shows it (-ATTRIB_HIDE).
+        $true hides the setting (+ATTRIB_HIDE), $false shows it (-ATTRIB_HIDE).
     .EXAMPLE
-    Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $false
+        Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $false
 
-    Unhides "Processor performance boost mode" in Control Panel.
+        Unhides "Processor performance boost mode" in Control Panel.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(

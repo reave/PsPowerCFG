@@ -1,40 +1,40 @@
 function Get-PowerSetting {
     <#
     .SYNOPSIS
-    Gets power settings and their AC/DC values. Equivalent to powercfg /query and /qh.
+        Gets power settings and their AC/DC values. Equivalent to powercfg /query and /qh.
     .DESCRIPTION
-    Reads settings directly from powrprof.dll: PowerEnumerate for subgroups and
-    settings, PowerReadACValueIndex/PowerReadDCValueIndex for values,
-    PowerReadValueMin/Max/Increment/UnitsSpecifier for range settings,
-    PowerReadPossibleFriendlyName for index settings, PowerReadSettingAttributes
-    for visibility and PowerSettingAccessCheck for Group Policy overrides.
+        Reads settings directly from powrprof.dll: PowerEnumerate for subgroups and
+        settings, PowerReadACValueIndex/PowerReadDCValueIndex for values,
+        PowerReadValueMin/Max/Increment/UnitsSpecifier for range settings,
+        PowerReadPossibleFriendlyName for index settings, PowerReadSettingAttributes
+        for visibility and PowerSettingAccessCheck for Group Policy overrides.
 
-    -Scheme, -Subgroup and -Setting take a GUID or a powercfg alias
-    (SCHEME_CURRENT, SUB_SLEEP, STANDBYIDLE, ...). -Scheme also takes a scheme
-    name. Hidden settings are skipped unless -IncludeHidden (like /qh).
+        -Scheme, -Subgroup and -Setting take a GUID or a powercfg alias
+        (SCHEME_CURRENT, SUB_SLEEP, STANDBYIDLE, ...). -Scheme also takes a scheme
+        name. Hidden settings are skipped unless -IncludeHidden (like /qh).
     .PARAMETER Scheme
-    Scheme GUID, alias or name. Default: the active scheme. Accepts Guid from
-    Get-PowerScheme objects on the pipeline.
+        Scheme GUID, alias or name. Default: the active scheme. Accepts Guid from
+        Get-PowerScheme objects on the pipeline.
     .PARAMETER Subgroup
-    Limit to one subgroup.
+        Limit to one subgroup.
     .PARAMETER Setting
-    Limit to one setting. The subgroup is found automatically when omitted.
+        Limit to one setting. The subgroup is found automatically when omitted.
     .PARAMETER Name
-    Filter by setting name or alias. Wildcards are supported.
+        Filter by setting name or alias. Wildcards are supported.
     .PARAMETER IncludeHidden
-    Include settings with ATTRIBUTE_HIDE.
+        Include settings with ATTRIBUTE_HIDE.
     .EXAMPLE
-    Get-PowerSetting -Subgroup SUB_SLEEP
+        Get-PowerSetting -Subgroup SUB_SLEEP
     .EXAMPLE
-    Get-PowerSetting -Setting STANDBYIDLE | Select-Object Name, AcValue, DcValue, Units
+        Get-PowerSetting -Setting STANDBYIDLE | Select-Object Name, AcValue, DcValue, Units
     .EXAMPLE
-    Get-PowerScheme | Get-PowerSetting -Name '*lid*'
+        Get-PowerScheme | Get-PowerSetting -Name '*lid*'
     .EXAMPLE
-    Get-PowerSetting -IncludeHidden | Where-Object AcPolicyManaged
+        Get-PowerSetting -IncludeHidden | Where-Object AcPolicyManaged
 
-    Settings that Group Policy currently overrides.
+        Settings that Group Policy currently overrides.
     .OUTPUTS
-    PsPowerCfg.PowerSetting
+        PsPowerCfg.PowerSetting
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerSetting])]

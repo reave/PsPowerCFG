@@ -1,24 +1,24 @@
 function Get-PowerDevice {
     <#
     .SYNOPSIS
-    Lists devices by power capability. Equivalent to powercfg /devicequery.
+        Lists devices by power capability. Equivalent to powercfg /devicequery.
     .DESCRIPTION
-    Calls DevicePowerEnumDevices for the query, plus the wake_programmable
-    and wake_armed lists so every result says whether it can be armed to wake
-    the system and whether it is armed now. The device list is opened once
-    for all three queries.
+        Calls DevicePowerEnumDevices for the query, plus the wake_programmable
+        and wake_armed lists so every result says whether it can be armed to wake
+        the system and whether it is armed now. The device list is opened once
+        for all three queries.
     .PARAMETER Query
-    The powercfg /devicequery flag: WakeFromS1Supported, WakeFromS2Supported,
-    WakeFromS3Supported, WakeFromAny, S1Supported, S2Supported, S3Supported,
-    S4Supported, WakeProgrammable, WakeArmed or AllDevices (the default).
+        The powercfg /devicequery flag: WakeFromS1Supported, WakeFromS2Supported,
+        WakeFromS3Supported, WakeFromAny, S1Supported, S2Supported, S3Supported,
+        S4Supported, WakeProgrammable, WakeArmed or AllDevices (the default).
     .PARAMETER Name
-    Filter by device name. Wildcards are supported.
+        Filter by device name. Wildcards are supported.
     .EXAMPLE
-    Get-PowerDevice -Query WakeArmed
+        Get-PowerDevice -Query WakeArmed
     .EXAMPLE
-    Get-PowerDevice -Query WakeProgrammable -Name '*mouse*' | Disable-PowerDeviceWake -WhatIf
+        Get-PowerDevice -Query WakeProgrammable -Name '*mouse*' | Disable-PowerDeviceWake -WhatIf
     .OUTPUTS
-    PsPowerCfg.PowerDevice
+        PsPowerCfg.PowerDevice
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerDevice])]

@@ -1,9 +1,9 @@
 function Assert-IsAdmin {
     <#
     .SYNOPSIS
-    Throws a terminating error in the calling cmdlet when not elevated.
+        Throws a terminating error in the calling cmdlet when not elevated.
     .PARAMETER Cmdlet
-    The caller's $PSCmdlet, so the error is attributed to the public function.
+        The caller's $PSCmdlet, so the error is attributed to the public function.
     #>
     [CmdletBinding()]
     param(

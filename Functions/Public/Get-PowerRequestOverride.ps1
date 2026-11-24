@@ -1,24 +1,24 @@
 function Get-PowerRequestOverride {
     <#
     .SYNOPSIS
-    Lists power request overrides. Equivalent to powercfg /requestsoverride with no arguments.
+        Lists power request overrides. Equivalent to powercfg /requestsoverride with no arguments.
     .DESCRIPTION
-    An override makes Windows ignore the listed request types (Display,
-    System, AwayMode, Execution) from a process, service or driver.
+        An override makes Windows ignore the listed request types (Display,
+        System, AwayMode, Execution) from a process, service or driver.
 
-    Read straight from HKLM\SYSTEM\CurrentControlSet\Control\Power\
-    PowerRequestOverride\<Process|Service|Driver>, where powercfg stores each
-    caller as a DWORD bitmask: Display = 1, System = 2, AwayMode = 4,
-    Execution = 8 (verified against powercfg on Windows 11 26100). Does not
-    need elevation.
+        Read straight from HKLM\SYSTEM\CurrentControlSet\Control\Power\
+        PowerRequestOverride\<Process|Service|Driver>, where powercfg stores each
+        caller as a DWORD bitmask: Display = 1, System = 2, AwayMode = 4,
+        Execution = 8 (verified against powercfg on Windows 11 26100). Does not
+        need elevation.
     .PARAMETER CallerType
-    Only return overrides for these caller types.
+        Only return overrides for these caller types.
     .PARAMETER Name
-    Filter by caller name. Wildcards are supported.
+        Filter by caller name. Wildcards are supported.
     .EXAMPLE
-    Get-PowerRequestOverride
+        Get-PowerRequestOverride
     .OUTPUTS
-    PsPowerCfg.PowerRequestOverride
+        PsPowerCfg.PowerRequestOverride
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerRequestOverride')]
@@ -49,8 +49,7 @@ function Get-PowerRequestOverride {
                     Mask       = $mask
                 }
             }
-        }
-        finally {
+        } finally {
             $key.Dispose()
         }
     }

@@ -1,26 +1,26 @@
 function Get-PowerLastWake {
     <#
     .SYNOPSIS
-    Reports what woke the system from sleep. Counterpart of powercfg /lastwake.
+        Reports what woke the system from sleep. Counterpart of powercfg /lastwake.
     .DESCRIPTION
-    Reads the "system has returned from a low power state" events (ID 1 from
-    Microsoft-Windows-Power-Troubleshooter) in the System log, newest first,
-    through wevtapi. Each event records the sleep and wake times and the wake
-    source.
+        Reads the "system has returned from a low power state" events (ID 1 from
+        Microsoft-Windows-Power-Troubleshooter) in the System log, newest first,
+        through wevtapi. Each event records the sleep and wake times and the wake
+        source.
 
-    powercfg /lastwake reads a kernel wake-history information class that has
-    no public documentation, so this uses the event log instead. Two
-    differences follow: wakes the log has rolled over are gone, and a boot
-    with no sleep since shows the last wake before that boot, where powercfg
-    shows an empty history.
+        powercfg /lastwake reads a kernel wake-history information class that has
+        no public documentation, so this uses the event log instead. Two
+        differences follow: wakes the log has rolled over are gone, and a boot
+        with no sleep since shows the last wake before that boot, where powercfg
+        shows an empty history.
     .PARAMETER Count
-    How many wake events to return, newest first. Default 1.
+        How many wake events to return, newest first. Default 1.
     .EXAMPLE
-    Get-PowerLastWake
+        Get-PowerLastWake
     .EXAMPLE
-    Get-PowerLastWake -Count 10 | Format-Table WakeTime, WakeSourceText
+        Get-PowerLastWake -Count 10 | Format-Table WakeTime, WakeSourceText
     .OUTPUTS
-    PsPowerCfg.PowerWakeEvent
+        PsPowerCfg.PowerWakeEvent
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerWakeEvent')]

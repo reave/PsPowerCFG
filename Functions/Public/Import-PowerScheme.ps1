@@ -1,19 +1,19 @@
 function Import-PowerScheme {
     <#
     .SYNOPSIS
-    Imports a power scheme from a .pow file. Equivalent to powercfg /import.
+        Imports a power scheme from a .pow file. Equivalent to powercfg /import.
     .DESCRIPTION
-    Calls PowerImportPowerScheme. Requires an elevated session.
+        Calls PowerImportPowerScheme. Requires an elevated session.
     .PARAMETER Path
-    Path to a .pow file created by Export-PowerScheme or powercfg /export.
+        Path to a .pow file created by Export-PowerScheme or powercfg /export.
     .PARAMETER DestinationGuid
-    GUID for the imported scheme. A new GUID is generated when omitted.
+        GUID for the imported scheme. A new GUID is generated when omitted.
     .PARAMETER NewName
-    Rename the imported scheme.
+        Rename the imported scheme.
     .EXAMPLE
-    Import-PowerScheme -Path C:\Temp\scheme.pow -NewName 'Imported'
+        Import-PowerScheme -Path C:\Temp\scheme.pow -NewName 'Imported'
     .OUTPUTS
-    PsPowerCfg.PowerScheme
+        PsPowerCfg.PowerScheme
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerScheme])]

@@ -1,23 +1,23 @@
 function Set-ActivePowerScheme {
     <#
     .SYNOPSIS
-    Makes a power scheme active. Equivalent to powercfg /setactive.
+        Makes a power scheme active. Equivalent to powercfg /setactive.
     .DESCRIPTION
-    Calls PowerSetActiveScheme in powrprof.dll. Does not require elevation
-    unless the scheme's ActionSetActive security descriptor says otherwise.
+        Calls PowerSetActiveScheme in powrprof.dll. Does not require elevation
+        unless the scheme's ActionSetActive security descriptor says otherwise.
     .PARAMETER Guid
-    GUID of the scheme to activate. Accepts pipeline input from Get-PowerScheme.
+        GUID of the scheme to activate. Accepts pipeline input from Get-PowerScheme.
     .PARAMETER Name
-    Name of the scheme to activate (exact match, case-insensitive). Must match
-    exactly one scheme.
+        Name of the scheme to activate (exact match, case-insensitive). Must match
+        exactly one scheme.
     .PARAMETER PassThru
-    Return the now-active scheme.
+        Return the now-active scheme.
     .EXAMPLE
-    Set-ActivePowerScheme -Name 'High performance'
+        Set-ActivePowerScheme -Name 'High performance'
     .EXAMPLE
-    Get-PowerScheme -Name 'Balanced' | Set-ActivePowerScheme -PassThru
+        Get-PowerScheme -Name 'Balanced' | Set-ActivePowerScheme -PassThru
     .OUTPUTS
-    None, or PsPowerCfg.PowerScheme with -PassThru.
+        None, or PsPowerCfg.PowerScheme with -PassThru.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'Guid')]
     [OutputType([PsPowerCfg.PowerScheme])]

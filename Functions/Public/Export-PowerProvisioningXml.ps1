@@ -1,30 +1,30 @@
 function Export-PowerProvisioningXml {
     <#
     .SYNOPSIS
-    Writes a Windows Configuration Designer provisioning XML of customized power settings. Equivalent to powercfg /pxml.
+        Writes a Windows Configuration Designer provisioning XML of customized power settings. Equivalent to powercfg /pxml.
     .DESCRIPTION
-    The XML holds every setting on this device with the RUNTIME_OVERRIDE
-    altitude, for building a provisioning package (.ppkg) in Windows
-    Configuration Designer.
+        The XML holds every setting on this device with the RUNTIME_OVERRIDE
+        altitude, for building a provisioning package (.ppkg) in Windows
+        Configuration Designer.
 
-    There is no public Win32 API for this, so this calls powercfg.exe, with
-    output captured in memory and the exit code checked. Requires an
-    elevated session.
+        There is no public Win32 API for this, so this calls powercfg.exe, with
+        output captured in memory and the exit code checked. Requires an
+        elevated session.
     .PARAMETER OutFile
-    XML path. Relative paths resolve against the current PowerShell location.
-    Default: .\power-provisioning.xml.
+        XML path. Relative paths resolve against the current PowerShell location.
+        Default: .\power-provisioning.xml.
     .PARAMETER Version
-    The package Version field. powercfg's default is 1.0.
+        The package Version field. powercfg's default is 1.0.
     .PARAMETER Name
-    The package Name field. powercfg's default is CustomOEM.Power.Settings.Control.
+        The package Name field. powercfg's default is CustomOEM.Power.Settings.Control.
     .PARAMETER Id
-    The package ID field. powercfg generates a new GUID by default.
+        The package ID field. powercfg generates a new GUID by default.
     .PARAMETER Owner
-    The OwnerType field. powercfg's default is OEM.
+        The OwnerType field. powercfg's default is OEM.
     .EXAMPLE
-    Export-PowerProvisioningXml -OutFile C:\Temp\power.xml -Name Contoso.Power -Version 1.1
+        Export-PowerProvisioningXml -OutFile C:\Temp\power.xml -Name Contoso.Power -Version 1.1
     .OUTPUTS
-    System.IO.FileInfo
+        System.IO.FileInfo
     #>
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo])]

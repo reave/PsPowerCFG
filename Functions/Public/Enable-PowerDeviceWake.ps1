@@ -1,24 +1,24 @@
 function Enable-PowerDeviceWake {
     <#
     .SYNOPSIS
-    Allows a device to wake the system from sleep. Equivalent to powercfg /deviceenableawake.
+        Allows a device to wake the system from sleep. Equivalent to powercfg /deviceenableawake.
     .DESCRIPTION
-    Calls DevicePowerSetDeviceState, then re-reads the wake_armed list and
-    writes an error if the device's state did not change. Only devices in
-    Get-PowerDevice -Query WakeProgrammable can be changed. Requires an
-    elevated session.
+        Calls DevicePowerSetDeviceState, then re-reads the wake_armed list and
+        writes an error if the device's state did not change. Only devices in
+        Get-PowerDevice -Query WakeProgrammable can be changed. Requires an
+        elevated session.
     .PARAMETER Name
-    Device name as Get-PowerDevice prints it. Wildcards are supported and
-    match against the wake-programmable devices; each match is confirmed
-    separately.
+        Device name as Get-PowerDevice prints it. Wildcards are supported and
+        match against the wake-programmable devices; each match is confirmed
+        separately.
     .PARAMETER PassThru
-    Return the device after the change.
+        Return the device after the change.
     .EXAMPLE
-    Enable-PowerDeviceWake -Name 'HID-compliant mouse'
+        Enable-PowerDeviceWake -Name 'HID-compliant mouse'
     .EXAMPLE
-    Get-PowerDevice -Query WakeProgrammable -Name '*Ethernet*' | Enable-PowerDeviceWake -WhatIf
+        Get-PowerDevice -Query WakeProgrammable -Name '*Ethernet*' | Enable-PowerDeviceWake -WhatIf
     .OUTPUTS
-    PsPowerCfg.PowerDevice
+        PsPowerCfg.PowerDevice
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([PsPowerCfg.PowerDevice])]

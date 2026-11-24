@@ -1,13 +1,13 @@
 function Resolve-OutputPath {
     <#
     .SYNOPSIS
-    Resolves a user-supplied output path against the current PowerShell
-    location (not the process working directory) and optionally forces an
-    extension.
+        Resolves a user-supplied output path against the current PowerShell
+        location (not the process working directory) and optionally forces an
+        extension.
     .DESCRIPTION
-    [System.IO.FileInfo] parameters resolve relative paths against
-    [Environment]::CurrentDirectory, which is usually not $PWD. This uses the
-    provider path resolver instead.
+        [System.IO.FileInfo] parameters resolve relative paths against
+        [Environment]::CurrentDirectory, which is usually not $PWD. This uses the
+        provider path resolver instead.
     #>
     [CmdletBinding()]
     [OutputType([string])]

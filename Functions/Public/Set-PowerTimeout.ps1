@@ -1,29 +1,29 @@
 function Set-PowerTimeout {
     <#
     .SYNOPSIS
-    Sets monitor, disk, sleep or hibernate timeouts in minutes. Equivalent to powercfg /change.
+        Sets monitor, disk, sleep or hibernate timeouts in minutes. Equivalent to powercfg /change.
     .DESCRIPTION
-    Thin wrapper over Set-PowerSetting for the four /change settings:
-      Monitor   = SUB_VIDEO\VIDEOIDLE      (monitor-timeout-ac/dc)
-      Disk      = SUB_DISK\DISKIDLE        (disk-timeout-ac/dc)
-      Standby   = SUB_SLEEP\STANDBYIDLE    (standby-timeout-ac/dc)
-      Hibernate = SUB_SLEEP\HIBERNATEIDLE  (hibernate-timeout-ac/dc)
-    0 means never.
+        Thin wrapper over Set-PowerSetting for the four /change settings:
+          Monitor   = SUB_VIDEO\VIDEOIDLE      (monitor-timeout-ac/dc)
+          Disk      = SUB_DISK\DISKIDLE        (disk-timeout-ac/dc)
+          Standby   = SUB_SLEEP\STANDBYIDLE    (standby-timeout-ac/dc)
+          Hibernate = SUB_SLEEP\HIBERNATEIDLE  (hibernate-timeout-ac/dc)
+        0 means never.
     .PARAMETER Type
-    Monitor, Disk, Standby or Hibernate.
+        Monitor, Disk, Standby or Hibernate.
     .PARAMETER AcMinutes
-    Timeout on AC power, in minutes.
+        Timeout on AC power, in minutes.
     .PARAMETER DcMinutes
-    Timeout on battery, in minutes.
+        Timeout on battery, in minutes.
     .PARAMETER Scheme
-    Scheme GUID, alias or name. Default: the active scheme (powercfg /change
-    only ever targets the active scheme).
+        Scheme GUID, alias or name. Default: the active scheme (powercfg /change
+        only ever targets the active scheme).
     .EXAMPLE
-    Set-PowerTimeout -Type Monitor -AcMinutes 5
+        Set-PowerTimeout -Type Monitor -AcMinutes 5
 
-    Same as powercfg /change monitor-timeout-ac 5.
+        Same as powercfg /change monitor-timeout-ac 5.
     .EXAMPLE
-    Set-PowerTimeout -Type Standby -AcMinutes 0 -DcMinutes 15
+        Set-PowerTimeout -Type Standby -AcMinutes 0 -DcMinutes 15
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerSetting])]

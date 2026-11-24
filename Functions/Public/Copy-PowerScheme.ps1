@@ -1,22 +1,22 @@
 function Copy-PowerScheme {
     <#
     .SYNOPSIS
-    Duplicates a power scheme. Equivalent to powercfg /duplicatescheme.
+        Duplicates a power scheme. Equivalent to powercfg /duplicatescheme.
     .DESCRIPTION
-    Calls PowerDuplicateScheme, then optionally PowerWriteFriendlyName and
-    PowerWriteDescription on the copy.
+        Calls PowerDuplicateScheme, then optionally PowerWriteFriendlyName and
+        PowerWriteDescription on the copy.
     .PARAMETER Guid
-    Source scheme GUID. Accepts pipeline input from Get-PowerScheme.
+        Source scheme GUID. Accepts pipeline input from Get-PowerScheme.
     .PARAMETER DestinationGuid
-    GUID for the new scheme. A new GUID is generated when omitted.
+        GUID for the new scheme. A new GUID is generated when omitted.
     .PARAMETER NewName
-    Name for the copy. Without it the copy keeps the source name, as powercfg does.
+        Name for the copy. Without it the copy keeps the source name, as powercfg does.
     .PARAMETER Description
-    Description for the copy.
+        Description for the copy.
     .EXAMPLE
-    Get-PowerScheme -Name Balanced | Copy-PowerScheme -NewName 'Balanced (no sleep)'
+        Get-PowerScheme -Name Balanced | Copy-PowerScheme -NewName 'Balanced (no sleep)'
     .OUTPUTS
-    PsPowerCfg.PowerScheme
+        PsPowerCfg.PowerScheme
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([PsPowerCfg.PowerScheme])]

@@ -1,18 +1,18 @@
 function Get-PowerWakeTimer {
     <#
     .SYNOPSIS
-    Lists active timers that can wake the system from sleep. Equivalent to powercfg /waketimers.
+        Lists active timers that can wake the system from sleep. Equivalent to powercfg /waketimers.
     .DESCRIPTION
-    Windows has no public API for enumerating other processes' wake timers,
-    so this runs powercfg /waketimers and parses it. Owner type, owner and
-    expiry are parsed from English output ("Timer set by [PROCESS] ... expires
-    at ... on ..."). In other display languages each timer comes back with
-    only Text filled in. Process paths are converted to drive-letter form in
-    Path. Requires an elevated session.
+        Windows has no public API for enumerating other processes' wake timers,
+        so this runs powercfg /waketimers and parses it. Owner type, owner and
+        expiry are parsed from English output ("Timer set by [PROCESS] ... expires
+        at ... on ..."). In other display languages each timer comes back with
+        only Text filled in. Process paths are converted to drive-letter form in
+        Path. Requires an elevated session.
     .EXAMPLE
-    Get-PowerWakeTimer
+        Get-PowerWakeTimer
     .OUTPUTS
-    PsPowerCfg.PowerWakeTimer
+        PsPowerCfg.PowerWakeTimer
     #>
     [CmdletBinding()]
     [OutputType('PsPowerCfg.PowerWakeTimer')]

@@ -1,8 +1,8 @@
 function Set-PowerDeviceWakeState {
     <#
     .SYNOPSIS
-    Shared body of Enable-/Disable-PowerDeviceWake: resolves -Name against the
-    wake-programmable devices, confirms, and calls the native setter.
+        Shared body of Enable-/Disable-PowerDeviceWake: resolves -Name against the
+        wake-programmable devices, confirms, and calls the native setter.
     #>
     [CmdletBinding()]
     param(

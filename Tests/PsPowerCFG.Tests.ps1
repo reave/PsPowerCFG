@@ -400,8 +400,7 @@ Describe 'Setting changes' -Tag 'Mutating' -Skip:(-not $runMutating) {
         try {
             Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden (-not $was)
             (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be (-not $was)
-        }
-        finally {
+        } finally {
             Set-PowerSettingAttribute -Setting PERFBOOSTMODE -Hidden $was
         }
         (Get-PowerSetting -Setting PERFBOOSTMODE -IncludeHidden).IsHidden | Should -Be $was
@@ -537,8 +536,7 @@ Describe 'Device wake changes' -Tag 'Mutating' -Skip:(-not ($runMutating -and $i
             $d = Disable-PowerDeviceWake -Name $name -Confirm:$false -PassThru -ErrorAction Stop
             $d.WakeArmed | Should -BeFalse
             @(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) | Should -Not -Contain $name
-        }
-        finally {
+        } finally {
             Enable-PowerDeviceWake -Name $name -Confirm:$false -ErrorAction SilentlyContinue
             if (@(powercfg.exe /devicequery wake_armed | ForEach-Object { $_.Trim() }) -notcontains $name) {
                 powercfg.exe /deviceenableawake $name | Out-Null
@@ -719,8 +717,7 @@ Describe 'Export-BatteryReport' {
     It 'writes XML and reformats it to HTML' {
         try {
             $x = Export-BatteryReport -FormatXML -OutFile (Join-Path $script:bout 'battery') -ErrorAction Stop
-        }
-        catch {
+        } catch {
             if ($_.FullyQualifiedErrorId -like 'PowerCfgFailed*' -and -not (Get-PowerCapability).SystemBatteriesPresent) {
                 Set-ItResult -Skipped -Because "no battery: $($_.Exception.Message)"; return
             }
@@ -768,8 +765,7 @@ Describe 'Report functions' {
             try {
                 $f = Export-SystemSleepDiagnostics -OutFile (Join-Path $script:out 'ssd.html') -ErrorAction Stop
                 $f.Exists | Should -BeTrue
-            }
-            catch {
+            } catch {
                 $_.FullyQualifiedErrorId | Should -BeLike 'ReportNotCreated*'
                 $_.Exception.Message | Should -BeLike '*powercfg said:*'
                 Set-ItResult -Skipped -Because "powercfg /systemsleepdiagnostics is deprecated on this build: $($_.Exception.Message)"
@@ -799,8 +795,7 @@ Describe 'Report functions' {
             Push-Location $script:out
             try {
                 (Export-SystemPowerReport -OutFile 'rel.html' -Duration 1).DirectoryName | Should -Be $script:out.TrimEnd('\')
-            }
-            finally { Pop-Location }
+            } finally { Pop-Location }
         }
     }
 }

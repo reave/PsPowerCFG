@@ -1,45 +1,45 @@
 function Restore-DefaultPowerScheme {
     <#
     .SYNOPSIS
-    Restores power schemes to their Windows defaults. Equivalent to powercfg /restoredefaultschemes.
+        Restores power schemes to their Windows defaults. Equivalent to powercfg /restoredefaultschemes.
     .DESCRIPTION
-    With -Guid: calls PowerRestoreIndividualDefaultPowerScheme. Only that
-    built-in scheme's settings are reset; other schemes are untouched.
+        With -Guid: calls PowerRestoreIndividualDefaultPowerScheme. Only that
+        built-in scheme's settings are reset; other schemes are untouched.
 
-    With -All: calls PowerRestoreDefaultPowerSchemes, which resets every
-    built-in scheme AND DELETES ALL CUSTOM SCHEMES. Guards:
-      - -All must be passed explicitly; there is no default "restore everything".
-      - Every custom scheme is first exported to a .pow file under -BackupPath.
-        If any export fails, nothing is restored. The backup needs an elevated
-        session.
-      - Prompts for confirmation (ConfirmImpact High) and lists what will be
-        deleted.
-    Skip the backup only with -NoBackup.
+        With -All: calls PowerRestoreDefaultPowerSchemes, which resets every
+        built-in scheme AND DELETES ALL CUSTOM SCHEMES. Guards:
+          - -All must be passed explicitly; there is no default "restore everything".
+          - Every custom scheme is first exported to a .pow file under -BackupPath.
+            If any export fails, nothing is restored. The backup needs an elevated
+            session.
+          - Prompts for confirmation (ConfirmImpact High) and lists what will be
+            deleted.
+        Skip the backup only with -NoBackup.
 
-    Restore a backup with Import-PowerScheme.
+        Restore a backup with Import-PowerScheme.
     .PARAMETER Guid
-    A built-in scheme to reset on its own.
+        A built-in scheme to reset on its own.
     .PARAMETER All
-    Reset every scheme and delete custom schemes.
+        Reset every scheme and delete custom schemes.
     .PARAMETER BackupPath
-    Folder for the .pow backups. Default:
-    %LOCALAPPDATA%\PsPowerCFG\backup\<yyyyMMdd-HHmmss>
+        Folder for the .pow backups. Default:
+        %LOCALAPPDATA%\PsPowerCFG\backup\<yyyyMMdd-HHmmss>
     .PARAMETER NoBackup
-    Do not export custom schemes before deleting them.
+        Do not export custom schemes before deleting them.
     .EXAMPLE
-    Restore-DefaultPowerScheme -Guid 381b4222-f694-41f0-9685-ff5bb260df2e
+        Restore-DefaultPowerScheme -Guid 381b4222-f694-41f0-9685-ff5bb260df2e
 
-    Resets only Balanced.
+        Resets only Balanced.
     .EXAMPLE
-    Restore-DefaultPowerScheme -All -WhatIf
+        Restore-DefaultPowerScheme -All -WhatIf
 
-    Shows which custom schemes would be backed up and deleted.
+        Shows which custom schemes would be backed up and deleted.
     .EXAMPLE
-    Get-ChildItem $env:LOCALAPPDATA\PsPowerCFG\backup\20261122-174500\*.pow | Import-PowerScheme
+        Get-ChildItem $env:LOCALAPPDATA\PsPowerCFG\backup\20261122-174500\*.pow | Import-PowerScheme
 
-    Brings the backed-up custom schemes back.
+        Brings the backed-up custom schemes back.
     .OUTPUTS
-    With -All, System.IO.FileInfo for each backup file written.
+        With -All, System.IO.FileInfo for each backup file written.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     [OutputType([System.IO.FileInfo])]

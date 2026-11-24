@@ -1,9 +1,9 @@
 function Resolve-PowerGuid {
     <#
     .SYNOPSIS
-    Resolves a GUID string, a powercfg alias (SCHEME_CURRENT, SUB_SLEEP,
-    STANDBYIDLE, ...) or, for schemes, a scheme name, to a GUID. Throws a
-    terminating error in the calling cmdlet when it cannot.
+        Resolves a GUID string, a powercfg alias (SCHEME_CURRENT, SUB_SLEEP,
+        STANDBYIDLE, ...) or, for schemes, a scheme name, to a GUID. Throws a
+        terminating error in the calling cmdlet when it cannot.
     #>
     [CmdletBinding()]
     [OutputType([guid])]

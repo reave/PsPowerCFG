@@ -1,21 +1,21 @@
 function Get-PowerAlias {
     <#
     .SYNOPSIS
-    Lists powercfg aliases and their GUIDs. Equivalent to powercfg /aliases and /aliasesh.
+        Lists powercfg aliases and their GUIDs. Equivalent to powercfg /aliases and /aliasesh.
     .DESCRIPTION
-    Returns the built-in alias table (captured from powercfg /aliasesh on
-    Windows 11). Every -Scheme/-Subgroup/-Setting parameter in this module
-    accepts these aliases in place of GUIDs.
+        Returns the built-in alias table (captured from powercfg /aliasesh on
+        Windows 11). Every -Scheme/-Subgroup/-Setting parameter in this module
+        accepts these aliases in place of GUIDs.
     .PARAMETER Name
-    Filter by alias. Wildcards are supported.
+        Filter by alias. Wildcards are supported.
     .PARAMETER Kind
-    Scheme, OverlayScheme, Profile, Subgroup or Setting.
+        Scheme, OverlayScheme, Profile, Subgroup or Setting.
     .EXAMPLE
-    Get-PowerAlias -Kind Subgroup
+        Get-PowerAlias -Kind Subgroup
     .EXAMPLE
-    Get-PowerAlias *IDLE*
+        Get-PowerAlias *IDLE*
     .OUTPUTS
-    PsPowerCfg.PowerAlias
+        PsPowerCfg.PowerAlias
     #>
     [CmdletBinding()]
     [OutputType([PsPowerCfg.PowerAlias])]

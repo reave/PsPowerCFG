@@ -1,29 +1,29 @@
 function Get-PowerScheme {
     <#
     .SYNOPSIS
-    Lists the power schemes (power plans) on the computer. Equivalent to powercfg /list.
+        Lists the power schemes (power plans) on the computer. Equivalent to powercfg /list.
     .DESCRIPTION
-    Enumerates power schemes directly through powrprof.dll (PowerEnumerate,
-    PowerReadFriendlyName, PowerReadDescription, PowerGetActiveScheme). No
-    powercfg.exe process, no text parsing, and names come back in the display
-    language of the OS.
+        Enumerates power schemes directly through powrprof.dll (PowerEnumerate,
+        PowerReadFriendlyName, PowerReadDescription, PowerGetActiveScheme). No
+        powercfg.exe process, no text parsing, and names come back in the display
+        language of the OS.
     .PARAMETER Name
-    Filter by scheme name. Wildcards are supported.
+        Filter by scheme name. Wildcards are supported.
     .PARAMETER Guid
-    Return only the schemes with these GUIDs.
+        Return only the schemes with these GUIDs.
     .EXAMPLE
-    Get-PowerScheme
+        Get-PowerScheme
 
-    Lists every power scheme and marks the active one.
+        Lists every power scheme and marks the active one.
     .EXAMPLE
-    Get-PowerScheme -Name 'High*'
+        Get-PowerScheme -Name 'High*'
     .EXAMPLE
-    Get-PowerScheme | Where-Object IsActive
+        Get-PowerScheme | Where-Object IsActive
     .OUTPUTS
-    PsPowerCfg.PowerScheme
+        PsPowerCfg.PowerScheme
     .NOTES
-    The objects also expose an ID alias property for compatibility with the
-    pre-1.1 Get-PowerSchemes output.
+        The objects also expose an ID alias property for compatibility with the
+        pre-1.1 Get-PowerSchemes output.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Name')]
     [OutputType([PsPowerCfg.PowerScheme])]

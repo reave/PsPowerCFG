@@ -1,29 +1,29 @@
 function Set-PowerRequestOverride {
     <#
     .SYNOPSIS
-    Makes Windows ignore some power request types from a process, service or driver. Equivalent to powercfg /requestsoverride <type> <name> <requests>.
+        Makes Windows ignore some power request types from a process, service or driver. Equivalent to powercfg /requestsoverride <type> <name> <requests>.
     .DESCRIPTION
-    Replaces any existing override for the caller with -Request. For example,
-    an override of Display for a media player lets the display turn off while
-    it plays.
+        Replaces any existing override for the caller with -Request. For example,
+        an override of Display for a media player lets the display turn off while
+        it plays.
 
-    Runs powercfg /requestsoverride and then reads the registry back to
-    confirm the stored bitmask. Writing the registry directly would skip
-    whatever else powercfg does to apply the change, which is not documented.
-    Requires an elevated session.
+        Runs powercfg /requestsoverride and then reads the registry back to
+        confirm the stored bitmask. Writing the registry directly would skip
+        whatever else powercfg does to apply the change, which is not documented.
+        Requires an elevated session.
     .PARAMETER CallerType
-    Process, Service or Driver, as Get-PowerRequest reports it.
+        Process, Service or Driver, as Get-PowerRequest reports it.
     .PARAMETER Name
-    The caller name: an executable name such as wmplayer.exe for a process,
-    the service name, or the driver name as Get-PowerRequest shows it.
+        The caller name: an executable name such as wmplayer.exe for a process,
+        the service name, or the driver name as Get-PowerRequest shows it.
     .PARAMETER Request
-    One or more of Display, System, AwayMode, Execution.
+        One or more of Display, System, AwayMode, Execution.
     .PARAMETER PassThru
-    Return the override after the change.
+        Return the override after the change.
     .EXAMPLE
-    Set-PowerRequestOverride -CallerType Process -Name wmplayer.exe -Request Display, System
+        Set-PowerRequestOverride -CallerType Process -Name wmplayer.exe -Request Display, System
     .OUTPUTS
-    PsPowerCfg.PowerRequestOverride
+        PsPowerCfg.PowerRequestOverride
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType('PsPowerCfg.PowerRequestOverride')]
