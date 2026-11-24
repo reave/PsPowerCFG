@@ -83,12 +83,22 @@ Describe 'Code style' -Skip:(-not $hasAnalyzer) {
     It 'passes PSScriptAnalyzer with the repository settings' {
         $root = Join-Path -Path $PSScriptRoot -ChildPath '..'
         $settings = Join-Path -Path $root -ChildPath 'PSScriptAnalyzerSettings.psd1'
-        $findings = Invoke-ScriptAnalyzer -Path $root -Recurse -Settings $settings
+        $analyzerErrors = $null
+        $analyzerParams = @{
+            Path          = $root
+            Recurse       = $true
+            Settings      = $settings
+            ErrorVariable = 'analyzerErrors'
+            ErrorAction   = 'SilentlyContinue'
+        }
+        $findings = Invoke-ScriptAnalyzer @analyzerParams
         # The manifest Description must be one constant string, so its line stays long.
         $findings = @($findings | Where-Object -FilterScript {
                 -not ($_.RuleName -eq 'PSAvoidLongLines' -and $_.ScriptName -eq 'PsPowerCFG.psd1')
             })
-        $report = foreach ($f in $findings) { '{0}:{1} {2}' -f $f.ScriptName, $f.Line, $f.RuleName }
+        $report = @(foreach ($f in $findings) { '{0}:{1} {2}' -f $f.ScriptName, $f.Line, $f.RuleName })
+        # An analyzer crash skips a file or rule, so it fails the test instead of passing silently.
+        $report += foreach ($e in $analyzerErrors) { 'analyzer error: {0} ({1})' -f $e, $e.TargetObject }
         $report | Should -BeNullOrEmpty
     }
 }
