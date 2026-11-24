@@ -7,13 +7,14 @@
         with 1 when it wrote anything. The manifest's long Description line is excluded, because a
         manifest allows only one constant string there.
 
-        The analysis runs in a child process of the same PowerShell edition. PSScriptAnalyzer
-        1.23 to 1.25 intermittently fail inside their own command lookup (NullReferenceException
-        in CommandInfo.get_Parameters, or "The term 'Get-Command' is not recognized"), from any
-        rule that looks up commands. Once that happens, the analyzer can stay broken for the rest
-        of the process, so each file it failed on is analyzed again in a fresh process, up to
-        three times. A retry repeats the same analysis, so it can't hide a finding. An analyzer
-        error that survives the retries is reported.
+        The analysis runs in a child process. On Windows it uses Windows PowerShell 5.1 when
+        PSScriptAnalyzer is installed there, because the analyzer is unreliable under PowerShell
+        7.7: it fails inside its own command lookup (NullReferenceException in
+        CommandInfo.get_Parameters, or "The term 'Get-Command' is not recognized") from any rule
+        that looks up commands, and the engine itself sometimes crashes. Otherwise it uses the
+        current edition. Either way, each file the analyzer failed on is analyzed again in a fresh
+        process, up to five times. A retry repeats the same analysis, so it can't hide a finding.
+        An analyzer error that survives the retries is reported.
 
     .EXAMPLE
         pwsh.exe -NoProfile -File .\Tests\Invoke-StyleCheck.ps1
@@ -54,7 +55,8 @@ if ($Worker) {
         $findings = Invoke-ScriptAnalyzer @analyzerParams
         if ($analyzerErrors) {
             # Findings from a run with errors are incomplete; the parent retries the whole file.
-            "error`t{0}`t{1}" -f $file.FullName, $analyzerErrors[0]
+            $message = "$($analyzerErrors[0])" -replace '\s*\r?\n\s*', ' '
+            "error`t{0}`t{1}" -f $file.FullName, $message
             continue
         }
         foreach ($f in $findings) {
@@ -68,7 +70,18 @@ if ($Worker) {
 }
 
 $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-$maxAttempts = 4
+if ([System.Environment]::OSVersion.Platform -eq 'Win32NT') {
+    $relative = 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $windowsPowerShell = Join-Path -Path $env:SystemRoot -ChildPath $relative
+    $probe = 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { exit 0 } else { exit 1 }'
+    if ([System.IO.File]::Exists($windowsPowerShell)) {
+        & $windowsPowerShell -NoProfile -Command $probe
+        if ($LASTEXITCODE -eq 0) {
+            $exe = $windowsPowerShell
+        }
+    }
+}
+$maxAttempts = 6
 $report = [System.Collections.Generic.List[string]]::new()
 $pending = [System.Collections.Generic.List[string]]::new()
 $pending.Add($Path)
@@ -77,7 +90,12 @@ for ($attempt = 1; $attempt -le $maxAttempts -and $pending.Count; $attempt++) {
     foreach ($item in $pending) {
         $output = & $exe -NoProfile -File $PSCommandPath -Worker -Path $Path -Target $item 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $report.Add(('worker failed on {0}: {1}' -f $item, ($output -join ' ')))
+            # The engine itself can crash under PowerShell 7.7; that run analyzed nothing.
+            if ($attempt -lt $maxAttempts) {
+                $failed.Add($item)
+            } else {
+                $report.Add(('worker failed on {0}: {1}' -f $item, ($output -join ' ')))
+            }
             continue
         }
         foreach ($line in $output) {
